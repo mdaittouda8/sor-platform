@@ -1,0 +1,27 @@
+/* ============ SETTINGS MODAL ============ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11,18,32,.5);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-backdrop.active { display: flex; }
+.modal {
+  width: 460px;
+  background: var(--white);
+  border-radius: var(--radius);
+  padding: 28px;
+  box-shadow: var(--shadow-lg);
+}
+.modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.modal .sub { color: var(--slate-400); font-size: 13px; margin-bottom: 20px; }
+.modal .field { margin-bottom: 14px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.modal small { color: var(--slate-400); font-size: 11px; display: block; margin-top: 6px; }
+.modal small a { color: var(--oncf-orange-deep); }
+
+

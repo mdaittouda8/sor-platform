@@ -1,0 +1,531 @@
+/* ============ ERTMS DASHBOARD ============ */
+.dash-top-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  background: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius);
+}
+.date-banner {
+  background: #4A9EFF;
+  color: var(--white);
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: -0.005em;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(74,158,255,.25);
+}
+.date-banner svg { width: 16px; height: 16px; }
+.date-pickers {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.date-pickers input {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 6px;
+  color: var(--ink-900);
+  font-weight: 500;
+}
+.date-pickers input:focus { outline: none; background: var(--white); border-radius: 4px; }
+.date-pickers .arrow { color: var(--slate-400); font-size: 13px; }
+.dash-filters {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+.filter-group { min-width: 110px; }
+.filter-group label {
+  display: block;
+  font-size: 10px;
+  color: var(--slate-400);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+/* Refresh ("Actualiser") button — sits next to the filters, styled to match export */
+.refresh-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  align-self: flex-end;
+}
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  background: var(--white);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-700);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  white-space: nowrap;
+  height: 30px;
+}
+.refresh-btn:hover:not(:disabled) { background: var(--paper); border-color: var(--oncf-orange); color: var(--oncf-orange-deep); }
+.refresh-btn:disabled { opacity: .7; cursor: wait; }
+.refresh-btn .spin { animation: refresh-spin .9s linear infinite; }
+.refresh-btn.loading { background: var(--paper); border-color: var(--oncf-orange); color: var(--oncf-orange-deep); }
+@keyframes refresh-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.refresh-meta {
+  font-size: 10px;
+  color: var(--slate-400);
+  font-weight: 500;
+  padding-right: 2px;
+}
+
+/* Export dropdown — sits next to the filters on the dashboard */
+.export-wrap {
+  position: relative;
+  align-self: flex-end;
+}
+.export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  background: var(--white);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-700);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  white-space: nowrap;
+  height: 30px;
+}
+.export-btn:hover { background: var(--paper); border-color: var(--oncf-orange); color: var(--oncf-orange-deep); }
+.export-btn.open { background: var(--oncf-orange); border-color: var(--oncf-orange); color: var(--ink-900); }
+.export-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(11,18,32,.15);
+  padding: 6px;
+  z-index: 100;
+  display: none;
+}
+.export-menu.open { display: block; }
+.export-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-700);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.export-menu button:hover { background: var(--paper); }
+.export-menu button svg { flex-shrink: 0; color: var(--oncf-orange-deep); }
+.export-menu button span { display: flex; flex-direction: column; gap: 1px; }
+.export-menu button strong { font-size: 12.5px; font-weight: 700; color: var(--ink-900); }
+.export-menu button em { font-size: 10.5px; font-style: normal; color: var(--slate-400); font-weight: 500; }
+
+/* Loading overlay during export */
+.export-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11,18,32,0.55);
+  backdrop-filter: blur(2px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.export-overlay.active { display: flex; }
+.export-overlay .export-card {
+  background: var(--white);
+  padding: 24px 32px;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-900);
+}
+.export-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid var(--slate-200);
+  border-top-color: var(--oncf-orange);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Data-load status banner — shown above the top row when data needs attention */
+.data-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.data-banner.info { background: #EFF5FE; color: #1E3A7A; border: 1px solid #C7DBF7; }
+.data-banner.warn { background: #FFF4E0; color: #8A5A00; border: 1px solid #FFD88A; }
+.data-banner.ok   { background: #E9F8EF; color: #0E6B3A; border: 1px solid #A6E3BF; }
+.data-banner.err  { background: #FCE9E9; color: #8A1F1F; border: 1px solid #F2B5B5; }
+.data-banner .data-hint { color: var(--slate-400); font-weight: 400; font-size: 12px; }
+.data-banner code { background: rgba(0,0,0,.06); padding: 1px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.file-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background: var(--oncf-orange);
+  color: var(--ink-900);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.file-pick-btn:hover { background: var(--oncf-orange-bright); transform: translateY(-1px); }
+
+.filter-group select {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--white);
+  color: var(--ink-900);
+  font-family: inherit;
+  cursor: pointer;
+}
+.filter-group select:focus { outline: none; border-color: var(--oncf-orange); }
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 14px;
+  align-items: stretch;
+}
+.dash-col-left, .dash-col-center { display: flex; flex-direction: column; gap: 14px; }
+/* Let donut cards in the left column grow to fill remaining vertical space */
+.dash-col-left .dash-card { flex: 1; display: flex; flex-direction: column; }
+.dash-col-left .dash-card .donut-row { flex: 1; min-height: 0; }
+/* Let both cards in the right column grow equally to fill the height */
+.dash-col-center .dash-card { flex: 1; display: flex; flex-direction: column; }
+.dash-col-center .dash-card .chart-fill { flex: 1; min-height: 0; position: relative; }
+
+.kpi-row-ertms {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.kpi-mini {
+  background: var(--white);
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  padding: 12px 14px;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+.kpi-mini:hover { border-color: var(--slate-300); transform: translateY(-1px); }
+.kpi-mini-label {
+  font-size: 10.5px;
+  color: var(--ink-700);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 6px;
+  min-height: 28px;
+}
+.kpi-mini-value {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--ink-900);
+}
+
+.dash-card { padding: 14px 16px; }
+.map-card { margin-top: 16px; }
+
+/* Custom Leaflet markers — circular with a number inside, color-coded by count */
+.disc-marker {
+  background: transparent !important;
+  border: none !important;
+}
+.disc-marker-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  color: white;
+  font-weight: 700;
+  font-size: 11px;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  text-shadow: 0 1px 2px rgba(0,0,0,.35);
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+  border: 2px solid rgba(255,255,255,.85);
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.disc-marker:hover .disc-marker-inner { transform: scale(1.12); }
+.disc-marker-inner.low    { background: radial-gradient(circle at 35% 30%, #6EE7B7, #16A34A); }  /* green */
+.disc-marker-inner.med    { background: radial-gradient(circle at 35% 30%, #FDE68A, #EAB308); }  /* yellow */
+.disc-marker-inner.high   { background: radial-gradient(circle at 35% 30%, #FDBA74, #EA580C); }  /* orange */
+.disc-marker-inner.xhigh  { background: radial-gradient(circle at 35% 30%, #FCA5A5, #DC2626); }  /* red */
+
+/* Small dots used in the legend above the map */
+.map-dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,.85);
+  box-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.map-dot-low    { background: linear-gradient(135deg, #6EE7B7, #16A34A); }  /* green */
+.map-dot-med    { background: linear-gradient(135deg, #FDE68A, #EAB308); }  /* yellow */
+.map-dot-high   { background: linear-gradient(135deg, #FDBA74, #EA580C); }  /* orange */
+.map-dot-xhigh  { background: linear-gradient(135deg, #FCA5A5, #DC2626); }  /* red */
+
+/* Leaflet popup styling to match the ONCF look */
+.leaflet-popup-content-wrapper {
+  border-radius: 10px !important;
+  padding: 2px !important;
+  box-shadow: 0 8px 24px rgba(11,18,32,.18) !important;
+}
+
+/* Custom "Recenter" control — sits under Leaflet's zoom +/- in the top-left */
+.leaflet-recenter-btn {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: white;
+  color: var(--ink-700);
+  border: none;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all .15s;
+  border-bottom: 1px solid #ccc;
+}
+.leaflet-recenter-btn:hover {
+  background: var(--paper);
+  color: var(--oncf-orange-deep);
+}
+/* When the recenter button is added as its own control (not grouped with zoom),
+   Leaflet wraps it in .leaflet-control with its own rounded corners + shadow */
+.leaflet-control:has(.leaflet-recenter-btn) {
+  border-radius: 4px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+.leaflet-recenter-btn:last-child { border-bottom: none; }
+.leaflet-popup-content {
+  margin: 12px 14px !important;
+  font-family: 'Inter Tight', system-ui, sans-serif !important;
+  font-size: 12.5px !important;
+  line-height: 1.55 !important;
+  color: var(--ink-700);
+}
+.leaflet-popup-content strong { color: var(--ink-900); font-weight: 700; }
+.leaflet-popup-content .popup-count {
+  display: inline-block;
+  background: var(--oncf-orange);
+  color: var(--ink-900);
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  margin-right: 4px;
+}
+.leaflet-popup-content hr {
+  border: 0;
+  border-top: 1px solid var(--slate-200);
+  margin: 6px 0;
+}
+.leaflet-popup-content .popup-list {
+  max-height: 140px;
+  overflow-y: auto;
+  font-size: 11.5px;
+  color: var(--slate-500);
+}
+.leaflet-popup-content .popup-list div { padding: 1px 0; }
+
+
+.dash-chart-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-900);
+  margin-bottom: 10px;
+  text-align: center;
+}
+.dash-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+}
+.dash-legend .lg-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-700);
+}
+.dash-legend .lg-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dash-legend .lg-label {
+  flex: 1;
+  font-weight: 500;
+}
+.dash-legend .lg-val {
+  color: var(--slate-400);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+}
+
+.map-marker {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.map-marker:hover { transform: scale(1.2); transform-origin: center; }
+
+@media (max-width: 1400px) {
+  .dash-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 1100px) {
+  .dash-top-row { grid-template-columns: 1fr; }
+  .dash-filters { justify-content: flex-start; }
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
+/* ============ MAP ZONE — wraps the map card, supports fullscreen mode ============ */
+/* Action buttons in the legend strip above the map: PNG export + fullscreen toggle */
+.map-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--slate-200);
+  border-radius: 6px;
+  background: var(--white);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-700);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  white-space: nowrap;
+  height: 26px;
+}
+.map-action-btn:hover:not(:disabled) {
+  background: var(--paper);
+  border-color: var(--oncf-orange);
+  color: var(--oncf-orange-deep);
+}
+.map-action-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Fullscreen mode — pin the map zone to the viewport edges, above sidebar */
+.map-zone {
+  position: relative;
+}
+.map-zone.is-fullscreen {
+  position: fixed;
+  inset: 0;                /* top/right/bottom/left = 0 */
+  z-index: 1000;           /* above the sidebar (no z-index) but below modal overlays (9999) */
+  background: var(--white);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  animation: map-zone-enter 150ms ease-out;
+}
+@keyframes map-zone-enter {
+  from { opacity: 0.7; }
+  to   { opacity: 1; }
+}
+
+/* Permanent labels next to map markers — always-visible interval names (e.g. "GSMR_02/03") */
+.leaflet-tooltip.map-marker-label {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--slate-200);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+  box-shadow: 0 1px 3px rgba(11, 18, 32, 0.15);
+  white-space: nowrap;
+  pointer-events: none;       /* clicks pass through to the marker beneath */
+  box-sizing: border-box;
+}
+/* Hide Leaflet's default tooltip arrow — the label looks cleaner as a plain pill */
+.leaflet-tooltip.map-marker-label::before {
+  display: none !important;
+}
+
+/* Tiny caption under charts — for clarifications that shouldn't compete with the title.
+   Used under the subsystem donut to show the original BORD/GSMR count after splitting. */
+.chart-footnote {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--slate-200);
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--slate-400);
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+.chart-footnote strong {
+  font-weight: 600;
+  color: var(--ink-700);
+}

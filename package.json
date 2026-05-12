@@ -1,0 +1,27 @@
+{
+  "name": "oncf-service-optimisation",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ONCF GSM-R Service Optimisation platform — React + Vite port",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "leaflet": "^1.9.4",
+    "mammoth": "^1.6.0",
+    "pdfjs-dist": "^3.11.174",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.4.0"
+  }
+}

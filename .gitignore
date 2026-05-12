@@ -1,0 +1,62 @@
+# ============ Node / JS ============
+node_modules
+dist
+dist-ssr
+*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ============ Environment (secrets) ============
+.env
+.env.local
+.env.*.local
+
+# NEW — Backend secrets (belt-and-suspenders in case the nested .gitignore is missing)
+backend/.env
+
+# ============ Python ============
+# NEW — Virtual envs and bytecode
+.venv
+backend/.venv/
+venv/
+__pycache__/
+backend/**/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ============ Data files ============
+# CHANGED — Block ALL spreadsheets, not just the two specific names
+*.xlsx
+*.xls
+*.csv
+
+# NEW — Backend cache for downloaded SharePoint files
+backend/cache/
+cache/
+
+# ============ Editor / IDE ============
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ============ OS noise ============
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ============ Claude / AI artifacts ============
+SKILL.md
