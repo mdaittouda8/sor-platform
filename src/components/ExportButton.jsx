@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { Chart } from 'chart.js';
-import { buildMapFallbackSVG } from '../lib/mapSvg.js';
-import { parseWorkbook, tryLoadFromFolder } from '../lib/excel.js';
 
 // We need the current filtered data at export time. The easiest way is to reach into
 // the dashboard's filter state via the DOM: the date pickers already hold the range,
@@ -103,17 +101,7 @@ export default function ExportButton({ dateFrom, dateTo, filteredData }) {
       }
     });
 
-    // Swap Leaflet for the static SVG fallback (html2canvas can't read cross-origin tiles)
-    const mapContainer = document.getElementById('disconnectMap');
-    let prevMapHTML = null;
-    if (mapContainer) {
-      prevMapHTML = mapContainer.innerHTML;
-      const dataForMap = filteredData || (await loadFallbackData());
-      mapContainer.innerHTML = buildMapFallbackSVG(dataForMap);
-      mapContainer.style.background = '#F8FAFC';
-    }
-
-    // Let the browser reflow + charts finish their DPR bump
+    // Let the browser reflow + charts finish their DPR bump, and tiles finish loading
     await new Promise((r) => setTimeout(r, 400));
 
     const restore = () => {
@@ -143,16 +131,6 @@ export default function ExportButton({ dateFrom, dateTo, filteredData }) {
         }
       });
 
-      // Restore the Leaflet container. The React <DisconnectionMap> is still mounted —
-      // we just blanked out its DOM. Trigger a re-render by forcing Leaflet to reinit
-      // via a synthetic resize event (the dashboard's useEffect already handles this).
-      if (mapContainer && prevMapHTML !== null) {
-        mapContainer.innerHTML = prevMapHTML;
-        mapContainer.style.background = '';
-      }
-      // Tell the DashboardPage to remount its Leaflet map — the previous instance's
-      // internal state doesn't survive us blanking its DOM, even if we restore the HTML.
-      window.dispatchEvent(new CustomEvent('oncf:export-done'));
     };
 
     try {
@@ -169,11 +147,12 @@ export default function ExportButton({ dateFrom, dateTo, filteredData }) {
         scale: captureScale,
         backgroundColor: '#F6F7FB', // matches --paper
         useCORS: true,
+        allowTaint: false,
         logging: false,
         width: TARGET_WIDTH,
         windowWidth: TARGET_WIDTH,
         windowHeight: dashboard.scrollHeight,
-        imageTimeout: 15000,
+        imageTimeout: 20000,
         foreignObjectRendering: false,
       });
 

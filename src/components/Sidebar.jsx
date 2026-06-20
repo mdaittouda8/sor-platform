@@ -78,10 +78,8 @@ export default function Sidebar({ currentPage, onNavigate }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <div className="brand-logo">ON</div>
-        <div className="title">
-          ONCF Optim<span>Service Optimisation</span>
-        </div>
+          <img src="/logo.png" alt="OptimRail" className="brand-logo-img" />
+          <div className="brand-subtitle">Service Optimisation</div>
       </div>
 
       {NAV_ITEMS.map((item) => {

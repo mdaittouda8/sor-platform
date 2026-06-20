@@ -15,10 +15,7 @@ export default function LoginPage() {
     <div className="login-wrap">
       <div className="login-left">
         <div className="brand-mark">
-          <div className="brand-logo">ON</div>
-          <div className="brand-text">
-            ONCF <span>· Optim</span>
-          </div>
+            <img src="/logo.png" alt="OptimRail" className="brand-mark-img" />
         </div>
 
         <div className="login-hero">

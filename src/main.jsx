@@ -12,6 +12,7 @@ import './styles/modal.css';
 import './styles/ertms.css';
 import './styles/documents.css';
 import './styles/responsive.css';
+import './styles/dark.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

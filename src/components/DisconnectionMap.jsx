@@ -3,7 +3,6 @@ import L from 'leaflet';
 import html2canvas from 'html2canvas';
 import { intervalToCoords } from '../data/gsmrSites.js';
 import { escapeHtml } from '../lib/markdown.js';
-import { buildMapFallbackSVG } from '../lib/mapSvg.js';
 
 // Compute color thresholds based on the number of weeks in the selected date range.
 //
@@ -124,6 +123,7 @@ export default function DisconnectionMap({ data, dateFrom, dateTo }) {
       attribution: '© OpenStreetMap · © CARTO',
       maxZoom: 18,
       subdomains: 'abcd',
+      crossOrigin: true,
     }).addTo(map);
 
     markerLayerRef.current = L.layerGroup().addTo(map);
@@ -273,20 +273,17 @@ export default function DisconnectionMap({ data, dateFrom, dateTo }) {
     const prevActionsDisplay = actionsEl ? actionsEl.style.display : '';
     if (actionsEl) actionsEl.style.display = 'none';
 
-    const prevMapHTML = mapEl.innerHTML;
-    const prevBg = mapEl.style.background;
-    mapEl.innerHTML = buildMapFallbackSVG(data);
-    mapEl.style.background = '#F8FAFC';
-
-    await new Promise((r) => setTimeout(r, 200));
+    // Give any in-flight tiles a moment to finish loading
+    await new Promise((r) => setTimeout(r, 300));
 
     try {
       const canvas = await html2canvas(zone, {
         scale: 3,
         backgroundColor: '#FFFFFF',
         useCORS: true,
+        allowTaint: false,
         logging: false,
-        imageTimeout: 15000,
+        imageTimeout: 20000,
       });
 
       const stamp = new Date().toISOString().slice(0, 10);
@@ -304,10 +301,7 @@ export default function DisconnectionMap({ data, dateFrom, dateTo }) {
       alert("Erreur lors de l'export de la carte : " + (e.message || e));
       console.error('Map export error:', e);
     } finally {
-      mapEl.innerHTML = prevMapHTML;
-      mapEl.style.background = prevBg;
       if (actionsEl) actionsEl.style.display = prevActionsDisplay;
-      window.dispatchEvent(new CustomEvent('oncf:export-done'));
       setExporting(false);
     }
   };

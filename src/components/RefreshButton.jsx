@@ -45,6 +45,11 @@ export default function RefreshButton({ lastUpdated, onRefresh, onError }) {
 
   return (
     <div className="refresh-wrap" data-tick={tick}>
+      {ago && !loading && (
+        <span className="refresh-meta" title={lastUpdated}>
+          Dernière maj : {ago}
+        </span>
+      )}
       <button
         className={`refresh-btn ${loading ? 'loading' : ''}`}
         onClick={handleClick}
@@ -68,11 +73,6 @@ export default function RefreshButton({ lastUpdated, onRefresh, onError }) {
         </svg>
         {loading ? 'Téléchargement…' : 'Actualiser'}
       </button>
-      {ago && !loading && (
-        <span className="refresh-meta" title={lastUpdated}>
-          Dernière maj : {ago}
-        </span>
-      )}
     </div>
   );
 }

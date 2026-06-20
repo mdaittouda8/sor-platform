@@ -4,6 +4,7 @@ const AppContext = createContext(null);
 
 // Storage keys
 const API_KEY_STORAGE = 'oncf.openrouter.apiKey';
+const THEME_STORAGE = 'oncf.theme';
 
 export function AppProvider({ children }) {
   // API key — seeds from env variable, then localStorage, then empty
@@ -17,6 +18,18 @@ export function AppProvider({ children }) {
     }
     return import.meta.env.VITE_OPENROUTER_KEY || '';
   });
+
+  // Theme — persisted to localStorage, applied to <html data-theme="...">
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem(THEME_STORAGE) || 'light'; } catch { return 'light'; }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem(THEME_STORAGE, theme); } catch {}
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'light' ? 'dark' : 'light'));
 
   // User info set at login
   const [user, setUser] = useState(null); // { username, initials, displayName }
@@ -45,7 +58,7 @@ export function AppProvider({ children }) {
   const logout = () => setUser(null);
 
   return (
-    <AppContext.Provider value={{ apiKey, setApiKey, user, login, logout }}>
+    <AppContext.Provider value={{ apiKey, setApiKey, user, login, logout, theme, toggleTheme }}>
       {children}
     </AppContext.Provider>
   );

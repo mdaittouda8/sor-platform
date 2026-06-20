@@ -1,12 +1,12 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import {
-  parseWorkbook,
   tryLoadFromFolder,
   refreshFromSharePoint,
   getBackendStatus,
   BackendError,
 } from '../lib/excel.js';
 import { useChart } from '../hooks/useChart.js';
+import { useApp } from '../lib/AppContext.jsx';
 import DisconnectionMap from '../components/DisconnectionMap.jsx';
 import ExportButton from '../components/ExportButton.jsx';
 import RefreshButton from '../components/RefreshButton.jsx';
@@ -61,6 +61,18 @@ function toISO(d) {
 }
 
 export default function DashboardPage() {
+  const { theme } = useApp();
+  const isDark = theme === 'dark';
+
+  // Chart color helpers — re-derived whenever theme changes
+  const chartColors = {
+    axis: isDark ? '#8594A8' : '#8A94AB',
+    label: isDark ? '#ADBAC7' : '#1a2332',
+    tickX: isDark ? '#8594A8' : '#52525b',
+    barLabel: isDark ? '#ADBAC7' : '#1a2332',
+    tooltip: '#0B1220',
+  };
+
   // Full dataset loaded from Excel
   const [allData, setAllData] = useState([]);
   const [banner, setBanner] = useState(null); // { tone, content }
@@ -81,13 +93,6 @@ export default function DashboardPage() {
   // Bumping this key forces the Leaflet map to fully remount. Used after PDF/PNG export,
   // which temporarily replaces the map DOM with an SVG fallback (html2canvas can't capture
   // cross-origin tiles). Simpler than trying to revive the old Leaflet instance in place.
-  const [mapKey, setMapKey] = useState(0);
-
-  useEffect(() => {
-    const onExportDone = () => setMapKey((k) => k + 1);
-    window.addEventListener('oncf:export-done', onExportDone);
-    return () => window.removeEventListener('oncf:export-done', onExportDone);
-  }, []);
 
   // Manual refresh: re-download from SharePoint via the backend.
   // Called by the Actualiser button. Errors surface as a dismissible banner.
@@ -186,53 +191,7 @@ export default function DashboardPage() {
         return;
       }
 
-      // No backend, no public/ file — fall back to manual file picker
-      setBanner({
-        tone: 'warn',
-        content: (
-          <>
-            <span>
-              ⚠️ Le fichier Excel n'a pas pu être chargé automatiquement. Sélectionnez-le manuellement :
-            </span>
-            <label className="file-pick-btn">
-              📁 Choisir le fichier Excel
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                style={{ display: 'none' }}
-                onChange={async (e) => {
-                  const file = e.target.files[0];
-                  if (!file) return;
-                  try {
-                    const buf = await file.arrayBuffer();
-                    const data = parseWorkbook(buf);
-                    setAllData(data);
-                    setBanner({
-                      tone: 'ok',
-                      content: (
-                        <span>
-                          ✓ Données chargées depuis <strong>{file.name}</strong> — {data.length}{' '}
-                          enregistrements
-                        </span>
-                      ),
-                    });
-                    setTimeout(() => setBanner(null), 3500);
-                  } catch (err) {
-                    setBanner({
-                      tone: 'err',
-                      content: <span>❌ Erreur de lecture : {err.message}</span>,
-                    });
-                  }
-                }}
-              />
-            </label>
-            <span className="data-hint">
-              Astuce : démarrez le backend (<code>python backend/main.py</code>) pour un chargement
-              automatique depuis SharePoint.
-            </span>
-          </>
-        ),
-      });
+      // No backend, no public/ file — nothing to show, wait for backend to start
     })();
 
     return () => {
@@ -464,12 +423,12 @@ export default function DashboardPage() {
           x: {
             stacked: true,
             grid: { display: false },
-            ticks: { font: { size: 10 }, color: '#8A94AB' },
+            ticks: { font: { size: 10 }, color: chartColors.axis },
           },
           y: {
             stacked: true,
             grid: { display: false },
-            ticks: { font: { size: 11, weight: '600' }, color: '#1a2332' },
+            ticks: { font: { size: 11, weight: '600' }, color: chartColors.label },
           },
         },
       },
@@ -499,7 +458,7 @@ export default function DashboardPage() {
         },
       ],
     }),
-    [rameData]
+    [rameData, isDark]
   );
 
   // Monthly by year — uses full dataset, not filtered (matches Power BI behavior)
@@ -555,7 +514,7 @@ export default function DashboardPage() {
             grid: { display: false },
             ticks: {
               font: { size: 11, weight: '500' },
-              color: '#52525b',
+              color: chartColors.tickX,
               maxRotation: 0,
               minRotation: 0,
               autoSkip: false,
@@ -576,7 +535,7 @@ export default function DashboardPage() {
                 const val = ds.data[i];
                 if (val > 0) {
                   ctx.save();
-                  ctx.fillStyle = '#1a2332';
+                  ctx.fillStyle = chartColors.barLabel;
                   ctx.font = '700 11px "Inter Tight", sans-serif';
                   ctx.textAlign = 'center';
                   ctx.fillText(val, bar.x, bar.y - 5);
@@ -588,7 +547,7 @@ export default function DashboardPage() {
         },
       ],
     }),
-    [monthData]
+    [monthData, isDark]
   );
 
   return (
@@ -766,7 +725,7 @@ export default function DashboardPage() {
       {/* Full-width disconnection map */}
       <div className="card dash-card map-card">
         <div className="dash-chart-title">Carte des déconnexions · LGV Tanger–Kénitra</div>
-        <DisconnectionMap key={mapKey} data={filtered} dateFrom={dateFrom} dateTo={dateTo} />
+        <DisconnectionMap data={filtered} dateFrom={dateFrom} dateTo={dateTo} />
       </div>
     </section>
   );

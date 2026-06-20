@@ -1,0 +1,195 @@
+/* ============================================================
+   DARK MODE — component overrides
+   CSS variables in base.css handle most cases automatically.
+   This file only covers elements that need explicit dark rules
+   (hardcoded colors, inverted roles, sidebar, inputs, etc.)
+   ============================================================ */
+
+/* ---- Sidebar ---- */
+/* In dark mode: pin sidebar to near-black and restore the dark-panel
+   look that was lost when layout.css switched to var(--white) for light mode. */
+[data-theme="dark"] .sidebar {
+  background: #161B22;
+  border-right-color: rgba(255,255,255,0.07);
+}
+[data-theme="dark"] .sidebar-brand {
+  border-bottom-color: rgba(255,255,255,.06);
+}
+[data-theme="dark"] .nav-item {
+  color: rgba(255,255,255,.55);
+}
+[data-theme="dark"] .nav-item:hover {
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.9);
+}
+[data-theme="dark"] .nav-item.active {
+  background: linear-gradient(90deg, rgba(243,146,0,.18), rgba(243,146,0,.06));
+  color: var(--oncf-orange-bright);
+}
+[data-theme="dark"] .nav-item .badge {
+  color: #fff;
+}
+[data-theme="dark"] .sidebar-footer {
+  border-top-color: rgba(255,255,255,.06);
+}
+[data-theme="dark"] .user-card {
+  background: rgba(255,255,255,.04);
+}
+[data-theme="dark"] .logout-btn:hover {
+  background: rgba(255,255,255,.05);
+  color: var(--oncf-orange-bright);
+}
+
+/* ---- Topbar ---- */
+[data-theme="dark"] .topbar {
+  background: var(--white);
+  border-bottom-color: var(--slate-200);
+}
+[data-theme="dark"] .icon-btn { color: var(--ink-700); }
+[data-theme="dark"] .icon-btn:hover { background: var(--slate-100); }
+[data-theme="dark"] .dot { border-color: var(--white); }
+[data-theme="dark"] .theme-toggle-btn { color: var(--oncf-orange); }
+
+/* ---- Inputs & selects ---- */
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] select {
+  background: var(--white);
+  border-color: var(--slate-200);
+  color: var(--ink-900);
+  color-scheme: dark;
+}
+[data-theme="dark"] input[type="date"]:focus,
+[data-theme="dark"] select:focus {
+  border-color: var(--oncf-orange);
+  outline: none;
+}
+
+/* ---- Buttons ---- */
+[data-theme="dark"] .btn-ghost {
+  background: var(--white);
+  border-color: var(--slate-200);
+  color: var(--ink-700);
+}
+[data-theme="dark"] .btn-ghost:hover {
+  background: var(--slate-100);
+  border-color: var(--slate-300);
+}
+
+/* ---- Cards & KPIs ---- */
+[data-theme="dark"] .card,
+[data-theme="dark"] .kpi {
+  background: var(--white);
+  border-color: var(--slate-200);
+}
+[data-theme="dark"] .kpi:hover {
+  border-color: var(--slate-300);
+}
+
+/* ---- Tabs ---- */
+[data-theme="dark"] .tab-group { background: var(--slate-100); }
+[data-theme="dark"] .tab { color: var(--slate-400); }
+[data-theme="dark"] .tab.active {
+  background: var(--white);
+  color: var(--ink-900);
+}
+
+/* ---- Line list rows ---- */
+[data-theme="dark"] .line-row { background: var(--slate-100); }
+[data-theme="dark"] .line-row:hover { background: var(--slate-200); }
+
+/* ---- Status pills ---- */
+[data-theme="dark"] .kpi-trend.neutral { background: var(--slate-100); color: var(--ink-700); }
+
+/* ---- Data banners ---- */
+[data-theme="dark"] .data-banner {
+  border-color: var(--slate-200);
+}
+[data-theme="dark"] .data-banner.info {
+  background: #1C2128;
+  color: var(--ink-800);
+}
+[data-theme="dark"] .data-banner.ok {
+  background: rgba(35,194,122,.12);
+  color: #4ADE80;
+}
+[data-theme="dark"] .data-banner.warn {
+  background: rgba(255,200,74,.10);
+  color: #FCD34D;
+}
+[data-theme="dark"] .data-banner.err {
+  background: rgba(255,91,91,.10);
+  color: #FCA5A5;
+}
+
+/* ---- Refresh & export buttons ---- */
+[data-theme="dark"] .refresh-btn,
+[data-theme="dark"] .export-btn {
+  background: var(--white);
+  border-color: var(--slate-200);
+  color: var(--ink-700);
+}
+[data-theme="dark"] .refresh-btn:hover:not(:disabled),
+[data-theme="dark"] .export-btn:hover {
+  background: var(--slate-100);
+  border-color: var(--oncf-orange);
+  color: var(--oncf-orange-deep);
+}
+[data-theme="dark"] .export-menu {
+  background: var(--white);
+  border-color: var(--slate-200);
+}
+[data-theme="dark"] .export-menu button {
+  color: var(--ink-700);
+}
+[data-theme="dark"] .export-menu button:hover {
+  background: var(--slate-100);
+}
+[data-theme="dark"] .export-menu button em { color: var(--slate-400); }
+
+/* ---- Filter groups ---- */
+[data-theme="dark"] .filter-group label { color: var(--slate-400); }
+[data-theme="dark"] .date-banner {
+  background: var(--slate-100);
+  border-color: var(--slate-200);
+  color: var(--ink-700);
+  box-shadow: none;
+}
+
+/* ---- Map zone ---- */
+[data-theme="dark"] .map-action-btn {
+  background: var(--white);
+  border-color: var(--slate-200);
+  color: var(--ink-700);
+}
+[data-theme="dark"] .map-action-btn:hover {
+  border-color: var(--oncf-orange);
+  color: var(--oncf-orange-deep);
+}
+
+/* ---- KPI mini (ERTMS row) ---- */
+[data-theme="dark"] .kpi-mini {
+  background: var(--white);
+  border-color: var(--slate-200);
+}
+
+/* ---- Dashboard chart titles ---- */
+[data-theme="dark"] .dash-chart-title { color: var(--ink-900); }
+[data-theme="dark"] .chart-footnote { color: var(--slate-400); }
+
+/* ---- Modal ---- */
+[data-theme="dark"] .modal-backdrop { background: rgba(0,0,0,.65); }
+[data-theme="dark"] .modal-box {
+  background: var(--white);
+  border-color: var(--slate-200);
+}
+[data-theme="dark"] .modal-box input,
+[data-theme="dark"] .modal-box textarea {
+  background: var(--paper);
+  border-color: var(--slate-200);
+  color: var(--ink-900);
+}
+
+/* ---- Scrollbars (webkit) ---- */
+[data-theme="dark"] ::-webkit-scrollbar-track { background: var(--paper); }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: var(--slate-200); border-radius: 4px; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: var(--slate-300); }
