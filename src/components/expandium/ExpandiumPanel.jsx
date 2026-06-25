@@ -2,6 +2,7 @@ import React from "react";
 import { useExpandiumData } from "../../hooks/useExpandiumData";
 import ExpandiumKpiCard from "./ExpandiumKpiCard";
 import ExpandiumRefreshButton from "./ExpandiumRefreshButton";
+import EngineHandoverChart from "./EngineHandoverChart";
 
 /**
  * Format a Date as "il y a Xh Ym" (relative time, French).
@@ -133,12 +134,34 @@ export default function ExpandiumPanel({ dateFrom, dateTo }) {
           loading={loading}
         />
       </div>
+
+      {/* ===== Graphiques par engin (1205 M2 + 1207 M1) ===== */}
+      <div className="exp-engines-section">
+        <div className="exp-engines-section-header">
+          <h3 className="exp-engines-section-title">Analyse par engin</h3>
+          <p className="exp-engines-section-subtitle">
+            Évolution journalière des causes de handover pour les engins suivis
+          </p>
+        </div>
+
+        <EngineHandoverChart
+          engineLabel="1205 M2"
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+        />
+
+        <EngineHandoverChart
+          engineLabel="1207 M1"
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+        />
+      </div>
     </section>
   );
 }
 
 /**
- * Inline component for the bar chart (kept private to this file).
+ * Inline component for the top intervals bar chart (kept private to this file).
  */
 function TopIntervalsBars({ items, loading }) {
   if (loading && items.length === 0) {

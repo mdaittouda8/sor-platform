@@ -6,8 +6,9 @@ Date filtering is applied on `start_time`.
 """
 from datetime import date, datetime, timedelta
 from typing import Optional
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from db import get_gold_engine
+from engine_mapping import get_imsis_for_engine, list_known_engines
 
 
 def _parse_date(d: Optional[str], default: date) -> date:
@@ -184,6 +185,85 @@ def top_intervals_handovers(df: date, dt: date, limit: int = 10) -> list[dict]:
         for r in rows
     ]
 
+
+
+# ============================================================================
+# KPI Engin — Évolution journalière des handovers par cause
+# pour un engin spécifique (ex: 1205 M2)
+# ============================================================================
+def engine_handover_causes(engine_label: str, df: date, dt: date) -> dict:
+    """
+    Pour un engin donné (ex: '1205 M2'), compte par jour :
+      - Better cell handovers
+      - Downlink quality handovers
+
+    Robuste : si un engin n'a qu'un seul type de cause sur la période,
+    l'autre série est remplie de zéros.
+    """
+    # Constantes locales — les valeurs EXACTES en BDD (sensibles à la casse)
+    BETTER_CELL = "Better cell"
+    DOWNLINK_QUALITY = "Downlink quality"
+
+    # 1) Résoudre les IMSI de l'engin via le mapping Python
+    imsis = get_imsis_for_engine(engine_label)
+    if not imsis:
+        return {
+            "engine_label": engine_label,
+            "days": [],
+            "better_cell": [],
+            "downlink_quality": [],
+            "total_better_cell": 0,
+            "total_downlink_quality": 0,
+            "error": f"Engin inconnu : {engine_label}",
+        }
+
+    # 2) Requête SQL : on passe la liste d'IMSI en paramètre
+    sql = text("""
+        SELECT
+            DATE(start_time) AS day,
+            handover_cause,
+            COUNT(*) AS nb
+        FROM gold.fact_handover
+        WHERE imsi IN :imsis
+          AND start_time >= :df
+          AND start_time < :dt
+          AND handover_cause IN ('Better cell', 'Downlink quality')
+        GROUP BY DATE(start_time), handover_cause
+        ORDER BY day
+    """).bindparams(bindparam("imsis", expanding=True))
+
+    with get_gold_engine().connect() as conn:
+        rows = conn.execute(sql, {
+            "imsis": imsis,
+            "df": df,
+            "dt": dt,
+        }).fetchall()
+
+    # 3) Restructuration robuste : on utilise .get() avec une valeur par défaut
+    #    plutôt que d'accéder directement aux clés (qui pourraient ne pas exister).
+    #
+    # Étape 3a : collecter tous les jours rencontrés
+    days_set = set()
+    by_day_cause: dict[tuple[str, str], int] = {}
+    for row in rows:
+        day_str = row.day.isoformat()
+        days_set.add(day_str)
+        # Clé composite (jour, cause) → comptage
+        by_day_cause[(day_str, row.handover_cause)] = int(row.nb)
+
+    # Étape 3b : produire les listes en utilisant .get() — pas de KeyError possible
+    sorted_days = sorted(days_set)
+    better_cell_series = [by_day_cause.get((d, BETTER_CELL), 0) for d in sorted_days]
+    downlink_quality_series = [by_day_cause.get((d, DOWNLINK_QUALITY), 0) for d in sorted_days]
+
+    return {
+        "engine_label": engine_label,
+        "days": sorted_days,
+        "better_cell": better_cell_series,
+        "downlink_quality": downlink_quality_series,
+        "total_better_cell": sum(better_cell_series),
+        "total_downlink_quality": sum(downlink_quality_series),
+    }
 
 # ============================================================================
 # Aggregate endpoint payload

@@ -222,6 +222,33 @@ def expandium_refresh_status(job_id: str | None = Query(None)):
         raise HTTPException(status_code=404, detail="job_id not found")
     return job
 
+
+@app.get("/api/expandium/engine-causes")
+def expandium_engine_causes(
+    engine: str = Query(..., description="Engine label, e.g. '1205 M2'"),
+    date_from: str | None = Query(None, description="ISO date YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="ISO date YYYY-MM-DD"),
+):
+    """
+    Daily counts of Better Cell + Downlink Quality handover causes
+    for a specific engine.
+    """
+    import traceback
+    from expandium import engine_handover_causes, _date_range
+    try:
+        df, dt = _date_range(date_from, date_to)
+        return engine_handover_causes(engine, df, dt)
+    except Exception as exc:
+        # ─── DEBUG : force l'affichage de la trace complète ───
+        print("=" * 70)
+        print(f"!! ERROR in /engine-causes for engine={engine!r}")
+        traceback.print_exc()
+        print("=" * 70)
+        raise HTTPException(
+            status_code=502,
+            detail=f"DB error: {type(exc).__name__}: {exc}",
+        )
+    
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------

@@ -331,3 +331,111 @@
   color: #1F2937;
   text-align: right;
 }
+
+
+
+/* ============================================================================
+   Engines section (1205 M2, 1207 M1)
+   ============================================================================ */
+
+.exp-engines-section {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.exp-engines-section-header {
+  margin-bottom: 4px;
+}
+
+.exp-engines-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 4px 0;
+}
+
+.exp-engines-section-subtitle {
+  font-size: 12px;
+  color: #6B7280;
+  margin: 0;
+}
+
+.exp-engine-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 18px 20px 20px;
+}
+
+.exp-engine-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.exp-engine-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 2px 0;
+}
+
+.exp-engine-subtitle {
+  font-size: 11px;
+  color: #6B7280;
+  margin: 0;
+}
+
+.exp-engine-totals {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.exp-engine-total {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.exp-engine-total-orange {
+  background: rgba(243, 146, 0, 0.12);
+  color: #B45309;
+}
+
+.exp-engine-total-red {
+  background: rgba(226, 45, 31, 0.12);
+  color: #991B1B;
+}
+
+.exp-engine-chart-area {
+  position: relative;
+  height: 240px;
+}
+
+.exp-engine-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9CA3AF;
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+  padding: 0 20px;
+}
+
+.exp-engine-error {
+  color: #E22D1F;
+  font-style: normal;
+}
+
