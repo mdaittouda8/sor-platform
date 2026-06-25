@@ -1,0 +1,333 @@
+/* ============================================================================
+   Expandium panel
+   ============================================================================ */
+
+.exp-panel {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px dashed #E5E7EB;
+}
+
+.exp-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.exp-panel-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 4px 0;
+}
+
+.exp-panel-subtitle {
+  font-size: 13px;
+  color: #4B5563;
+  margin: 0;
+}
+
+.exp-panel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* ---- Freshness pill ---- */
+.exp-freshness {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+}
+
+.exp-freshness-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #16A34A;
+  flex-shrink: 0;
+}
+
+.exp-freshness-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #6B7280;
+  letter-spacing: 1px;
+}
+
+.exp-freshness-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1F2937;
+}
+
+/* ---- Refresh button ---- */
+.exp-refresh-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.exp-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: #F39200;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.exp-refresh-btn:hover:not(:disabled) {
+  background: #D97706;
+}
+
+.exp-refresh-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+.exp-refresh-btn.is-busy {
+  background: #6B7280;
+}
+
+.exp-refresh-btn.is-failed {
+  background: #E22D1F;
+}
+
+.exp-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: exp-spin 0.8s linear infinite;
+}
+
+@keyframes exp-spin {
+  to { transform: rotate(360deg); }
+}
+
+.exp-refresh-error {
+  font-size: 11px;
+  color: #E22D1F;
+  max-width: 220px;
+  text-align: right;
+}
+
+/* ---- Error banner ---- */
+.exp-error-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  color: #991B1B;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.exp-error-retry {
+  padding: 4px 12px;
+  background: #FFFFFF;
+  border: 1px solid #FECACA;
+  border-radius: 6px;
+  color: #991B1B;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---- KPI row ---- */
+.exp-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 1200px) {
+  .exp-kpi-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .exp-kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.exp-kpi-card {
+  display: flex;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 110px;
+}
+
+.exp-kpi-accent {
+  width: 4px;
+  flex-shrink: 0;
+}
+
+.exp-kpi-body {
+  flex: 1;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.exp-kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #9CA3AF;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.exp-kpi-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.exp-kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1F2937;
+  line-height: 1.1;
+}
+
+.exp-kpi-unit {
+  font-size: 13px;
+  color: #4B5563;
+}
+
+.exp-kpi-sublabel {
+  font-size: 10px;
+  color: #6B7280;
+  margin-top: 6px;
+}
+
+/* ---- Sync info pill ---- */
+.exp-sync-info {
+  padding: 10px 14px;
+  background: #FFF7ED;
+  border: 1px dashed #F39200;
+  border-radius: 8px;
+  color: #4B5563;
+  font-size: 12px;
+  margin-bottom: 16px;
+}
+
+.exp-sync-info code {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  background: rgba(243, 146, 0, 0.1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: #B45309;
+}
+
+/* ---- Chart card ---- */
+.exp-chart-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 18px 20px 20px;
+}
+
+.exp-chart-header {
+  margin-bottom: 14px;
+}
+
+.exp-chart-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1F2937;
+  margin: 0 0 4px 0;
+}
+
+.exp-chart-subtitle {
+  font-size: 11px;
+  color: #6B7280;
+  margin: 0;
+}
+
+.exp-chart-empty {
+  padding: 30px 0;
+  text-align: center;
+  color: #9CA3AF;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.exp-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.exp-bar-row {
+  display: grid;
+  grid-template-columns: 110px 30px 1fr 60px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.exp-bar-label {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-weight: 600;
+  color: #1F2937;
+}
+
+.exp-bar-layer {
+  font-size: 9px;
+  font-weight: 700;
+  color: #9CA3AF;
+  letter-spacing: 0.5px;
+}
+
+.exp-bar-track {
+  height: 22px;
+  background: #F3F4F6;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.exp-bar-fill {
+  display: block;
+  height: 100%;
+  background: #F39200;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.exp-bar-value {
+  font-weight: 700;
+  color: #1F2937;
+  text-align: right;
+}

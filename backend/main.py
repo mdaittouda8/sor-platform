@@ -16,8 +16,14 @@ Run
 
 The React app's Vite dev server proxies /api/* → http://localhost:8000 (see vite.config.js).
 """
-
 from __future__ import annotations
+from fastapi import HTTPException, Query
+from expandium import get_all_kpis
+from expandium_jobs import start_refresh_job, get_job_status, get_running_job
+from db import healthcheck as db_healthcheck
+
+
+
 
 import os
 from datetime import datetime, timezone
@@ -159,6 +165,62 @@ def refresh():
         )
     return JSONResponse(result)
 
+
+
+
+
+
+# ============================================================================
+# Expandium endpoints
+# ============================================================================
+
+@app.get("/api/expandium/health")
+def expandium_health():
+    """Quick check that the Expandium gold DB is reachable."""
+    return db_healthcheck()
+
+
+@app.get("/api/expandium/kpis")
+def expandium_kpis(
+    date_from: str | None = Query(None, description="ISO date YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="ISO date YYYY-MM-DD"),
+):
+    """
+    Return the 5 KPIs + top intervals for the given period.
+    Defaults to last 7 days if no dates are provided.
+    """
+    try:
+        return get_all_kpis(date_from, date_to)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"DB error: {exc}")
+
+
+@app.post("/api/expandium/refresh")
+def expandium_refresh():
+    """
+    Trigger a background refresh of the Expandium pipeline.
+    Returns immediately with a job_id; poll /refresh/status for progress.
+    """
+    result = start_refresh_job()
+    if not result.get("ok"):
+        raise HTTPException(status_code=409, detail=result)
+    return result
+
+
+@app.get("/api/expandium/refresh/status")
+def expandium_refresh_status(job_id: str | None = Query(None)):
+    """
+    Get the status of a refresh job by job_id.
+    If job_id is omitted, returns the currently-running job (or null).
+    """
+    if not job_id:
+        running = get_running_job()
+        return {"running": running}
+
+    job = get_job_status(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job_id not found")
+    return job
 
 # ---------------------------------------------------------------------------
 # Entry point

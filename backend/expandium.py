@@ -67,12 +67,13 @@ def kpi_ho_success_rate(df: date, dt: date) -> dict:
     """
     sql = text("""
         SELECT
-            COUNT(*) AS total,
-            COUNT(*) FILTER (
-                WHERE handover_end_event ILIKE '%success%'
-            ) AS successful
+        COUNT(*) AS total,
+        COUNT(*) FILTER (
+            WHERE handover_end_event IN ('HO Complete', 'HO Performed')
+        ) AS successful
         FROM gold.fact_handover
-        WHERE start_time >= :df AND start_time < :dt
+        WHERE start_time >= :df
+        AND start_time < :dt;
     """)
     with get_gold_engine().connect() as conn:
         row = conn.execute(sql, {"df": df, "dt": dt}).fetchone()

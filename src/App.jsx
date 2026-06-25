@@ -10,9 +10,11 @@ import DocumentsPage from './pages/DocumentsPage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
 import AlertsPage from './pages/AlertsPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
+import ExpandiumPage from './pages/ExpandiumPage.jsx';
 
 const PAGE_LABELS = {
   dashboard: 'Tableau de bord',
+  expandium: 'Expandium',
   analyze: 'Analyse IA',
   documents: 'Documents',
   reports: 'Rapports',
@@ -40,6 +42,7 @@ function Shell() {
             This keeps the Leaflet map + Chart.js lifecycles simple: each page mounts
             fresh when you navigate to it, matching how a real multi-page React app works. */}
         {currentPage === 'dashboard' && <DashboardPage />}
+        {currentPage === 'expandium' && <ExpandiumPage />}
         {currentPage === 'analyze' && <AnalyzePage onOpenSettings={() => setSettingsOpen(true)} />}
         {currentPage === 'documents' && <DocumentsPage />}
         {currentPage === 'reports' && <ReportsPage />}

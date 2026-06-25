@@ -14,6 +14,20 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
+
+
+  {
+    id: 'expandium',
+    label: 'Expandium',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 12h2l3-8 4 16 3-8h6" />
+        <circle cx="20" cy="12" r="1" />
+      </svg>
+    ),
+  },
+
+  
   {
     id: 'analyze',
     label: 'Analyse IA',
