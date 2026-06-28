@@ -71,15 +71,30 @@ def _run_pipeline_in_background(job_id: str) -> None:
             encoding="utf-8",
             errors="replace",
         )
+
+        # ─── DEBUG TEMPORAIRE : afficher la sortie complète du subprocess ───
+        # À retirer une fois le diagnostic terminé.
+        print("=" * 70)
+        print(f"[refresh job {job_id}]")
+        print(f"  exit_code: {result.returncode}")
+        print(f"  STDOUT (last 3000 chars):")
+        print(result.stdout[-3000:] if result.stdout else "(empty)")
+        print(f"  STDERR (last 3000 chars):")
+        print(result.stderr[-3000:] if result.stderr else "(empty)")
+        print("=" * 70)
+        # ─── FIN DEBUG ───
+
         with _jobs_lock:
             _jobs[job_id]["finished_at"] = datetime.now().isoformat()
             if result.returncode == 0:
                 _jobs[job_id]["status"] = "success"
-                _jobs[job_id]["stdout_tail"] = (result.stdout or "")[-800:]
+                _jobs[job_id]["stdout_tail"] = (result.stdout or "")[-2000:]
             else:
                 _jobs[job_id]["status"] = "failed"
                 _jobs[job_id]["exit_code"] = result.returncode
-                _jobs[job_id]["stderr_tail"] = (result.stderr or "")[-1000:]
+                # ENRICHI : on garde aussi stdout en cas d'échec (utile pour debug)
+                _jobs[job_id]["stdout_tail"] = (result.stdout or "")[-2000:]
+                _jobs[job_id]["stderr_tail"] = (result.stderr or "")[-2000:]
     except subprocess.TimeoutExpired:
         with _jobs_lock:
             _jobs[job_id]["status"] = "failed"
