@@ -1,27 +1,16 @@
-import React from "react";
+import React, { useState } from "react";
 import { useExpandiumData } from "../../hooks/useExpandiumData";
 import ExpandiumKpiCard from "./ExpandiumKpiCard";
 import ExpandiumRefreshButton from "./ExpandiumRefreshButton";
 import EngineHandoverChart from "./EngineHandoverChart";
 
-/**
- * Format a Date as "il y a Xh Ym" (relative time, French).
- */
-function formatRelativeTime(date) {
-  if (!date) return "—";
-  const diffMs = Date.now() - date.getTime();
-  const sec = Math.floor(diffMs / 1000);
-  if (sec < 60) return "à l'instant";
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `il y a ${min} min`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `il y a ${hr} h ${min % 60} min`;
-  const day = Math.floor(hr / 24);
-  return `il y a ${day} j`;
-}
-
 export default function ExpandiumPanel({ dateFrom, dateTo }) {
-  const { data, loading, error, reload, lastFetchedAt } = useExpandiumData({
+  // refreshKey: incremented after each successful pipeline refresh so that
+  // child charts (EngineHandoverChart) re-fetch their data automatically.
+  // The KPI cards already reload via their own useExpandiumData.reload().
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const { data, loading, error, reload } = useExpandiumData({
     dateFrom,
     dateTo,
   });
@@ -39,16 +28,14 @@ export default function ExpandiumPanel({ dateFrom, dateTo }) {
           </p>
         </div>
         <div className="exp-panel-header-right">
-          <div className="exp-freshness">
-            <span className="exp-freshness-dot" />
-            <div>
-              <div className="exp-freshness-label">DERNIÈRE LECTURE</div>
-              <div className="exp-freshness-value">
-                {formatRelativeTime(lastFetchedAt)}
-              </div>
-            </div>
-          </div>
-          <ExpandiumRefreshButton onSuccess={() => reload()} />
+          <ExpandiumRefreshButton
+            onSuccess={() => {
+              // Reload KPI cards
+              reload();
+              // Force engine charts to refetch by bumping the shared key
+              setRefreshKey((k) => k + 1);
+            }}
+          />
         </div>
       </header>
 
@@ -111,34 +98,10 @@ export default function ExpandiumPanel({ dateFrom, dateTo }) {
         />
       </div>
 
-      {/* ===== Sync info ===== */}
-      <div className="exp-sync-info">
-        🔗 Période :{" "}
-        <strong>
-          {data?.date_from || dateFrom || "auto"} → {data?.date_to || dateTo || "auto"}
-        </strong>
-        {" · "}
-        Source : <code>gold.fact_*</code> · gsmr_dwh
-      </div>
-
-      {/* ===== Top intervals bar chart ===== */}
-      <div className="exp-chart-card">
-        <div className="exp-chart-header">
-          <h3 className="exp-chart-title">Top 10 intervalles par handovers</h3>
-          <p className="exp-chart-subtitle">
-            Cell ID source/cible mappés vers les intervalles GSMR_XX/YY (intra-couche)
-          </p>
-        </div>
-        <TopIntervalsBars
-          items={data?.top_intervals || []}
-          loading={loading}
-        />
-      </div>
-
       {/* ===== Graphiques par engin (1205 M2 + 1207 M1) ===== */}
       <div className="exp-engines-section">
         <div className="exp-engines-section-header">
-          <h3 className="exp-engines-section-title">Analyse par engin</h3>
+          <h3 className="exp-engines-section-title">Analyse par engine</h3>
           <p className="exp-engines-section-subtitle">
             Évolution journalière des causes de handover pour les engins suivis
           </p>
@@ -148,50 +111,16 @@ export default function ExpandiumPanel({ dateFrom, dateTo }) {
           engineLabel="1205 M2"
           dateFrom={dateFrom}
           dateTo={dateTo}
+          refreshKey={refreshKey}
         />
 
         <EngineHandoverChart
           engineLabel="1207 M1"
           dateFrom={dateFrom}
           dateTo={dateTo}
+          refreshKey={refreshKey}
         />
       </div>
     </section>
-  );
-}
-
-/**
- * Inline component for the top intervals bar chart (kept private to this file).
- */
-function TopIntervalsBars({ items, loading }) {
-  if (loading && items.length === 0) {
-    return <div className="exp-chart-empty">Chargement…</div>;
-  }
-  if (!items.length) {
-    return (
-      <div className="exp-chart-empty">
-        Aucune donnée pour la période sélectionnée.
-      </div>
-    );
-  }
-  const max = Math.max(...items.map((it) => it.count), 1);
-  return (
-    <ul className="exp-bars">
-      {items.map((it) => (
-        <li key={`${it.interval}-${it.layer}`} className="exp-bar-row">
-          <span className="exp-bar-label">{it.interval}</span>
-          <span className="exp-bar-layer">{it.layer}</span>
-          <span className="exp-bar-track">
-            <span
-              className="exp-bar-fill"
-              style={{ width: `${(it.count / max) * 100}%` }}
-            />
-          </span>
-          <span className="exp-bar-value">
-            {it.count.toLocaleString("fr-FR")}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }

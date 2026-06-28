@@ -62,6 +62,14 @@ def _run_pipeline_in_background(job_id: str) -> None:
         _jobs[job_id]["started_at"] = datetime.now().isoformat()
 
     try:
+        # Build a clean environment for the subprocess. We force UTF-8 everywhere
+        # because Python 3.14 on Windows defaults to CP1252 for stdout/stderr in
+        # subprocesses, which crashes the moment any non-ASCII character (✅, →,
+        # accented log message) is logged. PYTHONIOENCODING fixes that.
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+        env["PYTHONUTF8"] = "1"  # Python 3.7+ : force UTF-8 mode globally
+
         result = subprocess.run(
             [python_exe, str(script)],
             cwd=str(script.parent),
@@ -70,6 +78,7 @@ def _run_pipeline_in_background(job_id: str) -> None:
             text=True,
             encoding="utf-8",
             errors="replace",
+            env=env,
         )
 
         # ─── DEBUG TEMPORAIRE : afficher la sortie complète du subprocess ───

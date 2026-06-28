@@ -2,20 +2,23 @@ import React, { useEffect, useRef, useState } from "react";
 import { useChart } from "../../hooks/useChart";
 
 /**
- * Daily line chart of handover causes (Better Cell + Downlink Quality)
- * for a specific engine.
+ * Line chart of handover causes (Better Cell + Downlink Quality)
+ * for a specific engine — daily counts in absolute values.
  *
  * Props:
  *   - engineLabel : string (e.g. "1205 M2")
  *   - dateFrom, dateTo : ISO strings (YYYY-MM-DD)
+ *   - refreshKey : any (optional). When this value changes, the chart re-fetches
+ *                  its data. Used by ExpandiumPanel to force a reload after the
+ *                  pipeline finishes synchronizing.
  */
-export default function EngineHandoverChart({ engineLabel, dateFrom, dateTo }) {
+export default function EngineHandoverChart({ engineLabel, dateFrom, dateTo, refreshKey }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const canvasRef = useRef(null);
 
-  // Fetch data when engine or dates change
+  // Fetch data when engine, dates, or refreshKey changes
   useEffect(() => {
     let cancelled = false;
     const ac = new AbortController();
@@ -49,7 +52,7 @@ export default function EngineHandoverChart({ engineLabel, dateFrom, dateTo }) {
       cancelled = true;
       ac.abort();
     };
-  }, [engineLabel, dateFrom, dateTo]);
+  }, [engineLabel, dateFrom, dateTo, refreshKey]);
 
   // Render the line chart
   useChart(
@@ -57,32 +60,49 @@ export default function EngineHandoverChart({ engineLabel, dateFrom, dateTo }) {
     () => {
       if (!data || !data.days || data.days.length === 0) return null;
 
+      // Pre-compute daily totals for the tooltip
+      const totalsPerDay = data.days.map(
+        (_, i) => (data.better_cell[i] || 0) + (data.downlink_quality[i] || 0)
+      );
+
+      // Format X-axis labels nicely (DD-MMM-YY in French)
+      const monthShort = [
+        "Jan", "Fév", "Mar", "Avr", "Mai", "Jun",
+        "Jui", "Aoû", "Sep", "Oct", "Nov", "Déc",
+      ];
+      const xLabels = data.days.map((isoDate) => {
+        const [y, m, d] = isoDate.split("-");
+        return `${d}-${monthShort[parseInt(m, 10) - 1]}-${y.slice(2)}`;
+      });
+
       return {
         type: "line",
         data: {
-          labels: data.days,
+          labels: xLabels,
           datasets: [
             {
               label: "Better Cell",
               data: data.better_cell,
               borderColor: "#F39200",
-              backgroundColor: "rgba(243, 146, 0, 0.1)",
+              backgroundColor: "rgba(243, 146, 0, 0.12)",
               borderWidth: 2,
               fill: true,
               tension: 0.3,
               pointRadius: 3,
+              pointHoverRadius: 5,
               pointBackgroundColor: "#F39200",
             },
             {
               label: "Downlink Quality",
               data: data.downlink_quality,
-              borderColor: "#E22D1F",
-              backgroundColor: "rgba(226, 45, 31, 0.1)",
+              borderColor: "#3B82F6",
+              backgroundColor: "rgba(59, 130, 246, 0.12)",
               borderWidth: 2,
               fill: true,
               tension: 0.3,
               pointRadius: 3,
-              pointBackgroundColor: "#E22D1F",
+              pointHoverRadius: 5,
+              pointBackgroundColor: "#3B82F6",
             },
           ],
         },
@@ -92,28 +112,53 @@ export default function EngineHandoverChart({ engineLabel, dateFrom, dateTo }) {
           interaction: { mode: "index", intersect: false },
           plugins: {
             legend: {
-              position: "top",
-              align: "end",
-              labels: { boxWidth: 12, font: { size: 11 } },
+              position: "bottom",
+              align: "center",
+              labels: {
+                boxWidth: 12,
+                font: { size: 11 },
+                padding: 12,
+              },
             },
             tooltip: {
               backgroundColor: "#0B1220",
-              padding: 8,
+              padding: 10,
               cornerRadius: 6,
               callbacks: {
-                title: (items) => `Jour : ${items[0].label}`,
+                title: (items) => {
+                  const idx = items[0].dataIndex;
+                  return `${xLabels[idx]} · total ${totalsPerDay[idx]} handovers`;
+                },
+                label: (ctx) => {
+                  const idx = ctx.dataIndex;
+                  const exactCount = ctx.parsed.y;
+                  const total = totalsPerDay[idx];
+                  const pct = total > 0 ? (exactCount / total) * 100 : 0;
+                  return `${ctx.dataset.label}: ${exactCount} handovers (${pct.toFixed(1)}%)`;
+                },
               },
             },
           },
           scales: {
             x: {
               grid: { display: false },
-              ticks: { font: { size: 10 }, color: "#6B7280", maxRotation: 0 },
+              ticks: {
+                font: { size: 9 },
+                color: "#6B7280",
+                maxRotation: 90,
+                minRotation: 90,
+                autoSkip: true,
+                maxTicksLimit: 30,
+              },
             },
             y: {
               beginAtZero: true,
               grid: { color: "rgba(0,0,0,0.05)" },
-              ticks: { font: { size: 10 }, color: "#6B7280", precision: 0 },
+              ticks: {
+                font: { size: 10 },
+                color: "#6B7280",
+                precision: 0,
+              },
             },
           },
         },
@@ -126,9 +171,9 @@ export default function EngineHandoverChart({ engineLabel, dateFrom, dateTo }) {
     <div className="exp-engine-card">
       <div className="exp-engine-header">
         <div>
-          <h4 className="exp-engine-title">Engin {engineLabel}</h4>
+          <h4 className="exp-engine-title">Engine {engineLabel}</h4>
           <p className="exp-engine-subtitle">
-            Évolution journalière des handovers — causes Better Cell &amp; Downlink Quality
+            Évolution journalière des handovers — Better Cell &amp; Downlink Quality
           </p>
         </div>
         {data && !loading && !error && data.days && data.days.length > 0 && (

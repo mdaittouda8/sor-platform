@@ -411,14 +411,15 @@
   color: #B45309;
 }
 
-.exp-engine-total-red {
-  background: rgba(226, 45, 31, 0.12);
-  color: #991B1B;
+.exp-engine-total-blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1D4ED8;
 }
+
 
 .exp-engine-chart-area {
   position: relative;
-  height: 240px;
+  height: 280px;     /* recommandé pour les lignes */
 }
 
 .exp-engine-empty {
