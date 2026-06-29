@@ -5,20 +5,16 @@ import Sidebar from './components/Sidebar.jsx';
 import Topbar from './components/Topbar.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
+import ExpandiumPage from './pages/ExpandiumPage.jsx';
 import AnalyzePage from './pages/AnalyzePage.jsx';
 import DocumentsPage from './pages/DocumentsPage.jsx';
-import ReportsPage from './pages/ReportsPage.jsx';
-import AlertsPage from './pages/AlertsPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
-import ExpandiumPage from './pages/ExpandiumPage.jsx';
 
 const PAGE_LABELS = {
   dashboard: 'Tableau de bord',
   expandium: 'Expandium',
   analyze: 'Analyse IA',
   documents: 'Documents',
-  reports: 'Rapports',
-  alerts: 'Alertes',
   'settings-page': 'Paramètres',
 };
 
@@ -45,8 +41,6 @@ function Shell() {
         {currentPage === 'expandium' && <ExpandiumPage />}
         {currentPage === 'analyze' && <AnalyzePage onOpenSettings={() => setSettingsOpen(true)} />}
         {currentPage === 'documents' && <DocumentsPage />}
-        {currentPage === 'reports' && <ReportsPage />}
-        {currentPage === 'alerts' && <AlertsPage />}
         {currentPage === 'settings-page' && <SettingsPage />}
       </main>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />

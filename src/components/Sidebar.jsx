@@ -14,8 +14,6 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-
-
   {
     id: 'expandium',
     label: 'Expandium',
@@ -26,8 +24,6 @@ const NAV_ITEMS = [
       </svg>
     ),
   },
-
-  
   {
     id: 'analyze',
     label: 'Analyse IA',
@@ -51,29 +47,9 @@ const NAV_ITEMS = [
     ),
   },
   {
-    id: 'reports',
-    label: 'Rapports',
-    section: 'Outils',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 3v18h18" />
-        <path d="M7 15l4-4 4 4 5-6" />
-      </svg>
-    ),
-  },
-  {
-    id: 'alerts',
-    label: 'Alertes',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-        <path d="M10.3 21a2 2 0 0 0 3.4 0" />
-      </svg>
-    ),
-  },
-  {
     id: 'settings-page',
     label: 'Paramètres',
+    section: 'Outils',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
