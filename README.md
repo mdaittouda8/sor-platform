@@ -1,168 +1,206 @@
-# OptimRail
+# ONCF Service Optimisation
 
-**Plateforme web interne de supervision et d'optimisation du réseau GSM-R**
-Service Optimisation Réseau — ONCF · LGV Tanger–Kénitra
+Plateforme interne de supervision, analyse et optimisation du réseau GSM‑R pour la LGV Tanger‑Kénitra.
 
----
+Port React + Vite du prototype mono-fichier (`Platfrom.html`), avec un backend FastAPI qui récupère les données depuis SharePoint **et** expose les KPI radio issus de la sonde Expandium via un entrepôt PostgreSQL local.
 
-## Aperçu
-
-OptimRail est un outil interne développé pour le Service Optimisation Réseau de l'ONCF. Il centralise le suivi des déconnexions ERTMS Niveau 2 sur la LGV Tanger–Kénitra, expose les indicateurs radio de la sonde Expandium QATS, et intègre un assistant IA pour l'aide à la décision sur les paramètres BSC Huawei.
-
-La plateforme remplace un enchaînement historique d'outils (Excel SharePoint + Power BI + exports manuels QATS) par une application web unifiée, interactive et automatisée.
-
----
-
-## Fonctionnalités
-
-**Tableau de bord ERTMS**
-Indicateurs de déconnexion (total, GSM-R, M1, M2), donuts de répartition par sous-système et par événement, histogramme par rame et distribution mensuelle multi-années. Filtres en cascade sur période, rame, intervalle et cabine.
-
-**Carte interactive Leaflet**
-Agrégation des déconnexions par intervalle de sites GSM-R (`GSMR_XX/YY`), positionnement au milieu géographique des deux sites, coloration dynamique calibrée sur la fenêtre temporelle (règle 2N/3N/4N par nombre de semaines), labels permanents, popups détaillés, mode plein écran, export PNG haute résolution.
-
-**Page Expandium**
-Cinq KPI réseau calculés depuis la base `gsmr_dwh` (appels ETCS, taux de succès handover, durée moyenne HO, erreurs HDLC, transactions). Deux graphiques journaliers par engin (1205 M2 et 1207 M1) séparant les causes Better Cell et Downlink Quality. Bouton de synchronisation asynchrone qui déclenche le pipeline ETL en arrière-plan.
-
-**Analyse IA**
-Chaîne de fallback automatique Gemini 3 Flash Preview → Nemotron Nano 9B v2 via OpenRouter. Prompt système spécialisé GSM-R (~350 lignes) avec catalogue des paramètres BSC Huawei et méthodologie d'analyse en trois étapes.
-
-**Documents**
-Import PDF/DOCX, extraction de texte côté navigateur (pdf.js, mammoth.js), génération de résumés techniques via OpenRouter.
-
-**Exports**
-Export PNG et PDF haute résolution du tableau de bord complet ou de la carte seule.
-
----
-
-## Stack
-
-| Couche | Technologies |
-|---|---|
-| Frontend | React 19 · Vite 5 · Chart.js · Leaflet · xlsx.js · jsPDF · html2canvas · pdf.js · mammoth.js |
-| Backend | FastAPI · Python 3.11 · SQLAlchemy · psycopg2 · Requests · python-dotenv |
-| Entrepôt | PostgreSQL 16 (architecture médaillon Bronze/Silver/Gold) |
-| Intégrations | SharePoint (OAuth ROPC via Microsoft Graph) · OpenRouter · sonde Expandium QATS |
-| Pipeline ETL | Repo séparé `gsmr-data-pipeline-dwh` (Selenium + paramiko) |
-
----
-
-## Structure du dépôt
+## Architecture
 
 ```
-oncf-platform/
-├── src/                       # Frontend React
-│   ├── pages/                 # LoginPage, DashboardPage, ExpandiumPage,
-│   │                          # AnalyzePage, DocumentsPage, SettingsPage
-│   ├── components/            # Sidebar, Topbar, DisconnectionMap,
-│   │                          # ExpandiumPanel, EngineHandoverChart,
-│   │                          # ExpandiumKpiCard, ExpandiumRefreshButton, etc.
-│   ├── styles/                # CSS modulaires
-│   ├── hooks/                 # useExpandiumData, etc.
-│   ├── lib/                   # excel.js, openrouter.js, expandium.js, mapSvg.js
-│   └── data/                  # gsmrSites.js (33 sites GSM-R)
-│
-├── backend/
-│   ├── main.py                # FastAPI, endpoints REST
-│   ├── sharepoint.py          # OAuth ROPC + Microsoft Graph
-│   ├── expandium.py           # Requêtes SQL sur vues Gold (KPI + engin)
-│   ├── expandium_jobs.py      # Orchestration asynchrone du pipeline
-│   ├── engine_mapping.py      # Table de correspondance IMSI → engin
-│   ├── db.py                  # Connexion SQLAlchemy à PostgreSQL
-│   ├── requirements.txt
-│   ├── .env.example           # Modèle de configuration (à copier en .env)
-│   └── cache/                 # ertms.xlsx téléchargé (gitignored)
-│
-├── public/                    # Ressources statiques (logo)
-├── package.json
-├── vite.config.js             # Proxy /api → localhost:8000
-├── index.html
-└── .gitignore
+┌──────────────┐       ┌───────────────┐       ┌────────────────┐
+│  React app   │───────│  FastAPI      │───────│ SharePoint     │
+│  :5173       │  /api │  :8000        │  MSAL │                │
+│              │       │               │       └────────────────┘
+│              │       │               │       ┌────────────────┐
+│              │       │               │──SQL──│ PostgreSQL     │
+│              │       │               │       │ gsmr_dwh       │
+│              │       │               │       │ (bronze/silver/│
+│              │       │               │       │       gold)    │
+│              │       │               │       └────────────────┘
+│              │       │               │             ▲
+│              │       │               │             │ (alimenté par)
+│              │       │               │       ┌────────────────┐
+│              │       │  spawn subprocess     │ Pipeline ETL   │
+│              │       │────────────────────── │ (repo séparé)  │
+│              │       │                       │ Selenium + SSH │
+└──────────────┘       └───────────────┘       └────────────────┘
+                                                       ▲
+                                                       │ (via tunnel SSH paramiko)
+                                                ┌──────────────┐
+                                                │ Sonde        │
+                                                │ Expandium    │
+                                                │ QATS         │
+                                                └──────────────┘
 ```
 
----
+Le frontend ne parle jamais directement à SharePoint (CORS impossible, credentials exposés). Le backend télécharge l'Excel, le cache sur disque, et le sert via `/api/ertms.xlsx`. Un bouton **Actualiser** dans le dashboard déclenche un re-téléchargement à la demande.
+
+Pour Expandium, le backend expose les KPI via des requêtes SQL sur les **vues gold** de la base `gsmr_dwh`. Le rafraîchissement des données est déclenché par un bouton **Synchroniser** dans la page Expandium — le backend lance en arrière-plan le pipeline ETL (repo séparé `gsmr-data-pipeline-dwh`) qui ouvre un tunnel SSH vers la sonde, extrait 6 CSV via Selenium headless, et alimente Bronze puis Silver dans PostgreSQL. Le frontend polle l'état du job toutes les 3 secondes et recharge les graphiques à la fin.
 
 ## Prérequis
 
-- **Node.js** 20 LTS ou supérieur
-- **Python** 3.11
-- **PostgreSQL** 16 (accès en lecture aux vues `gold.*` de la base `gsmr_dwh`)
-- **Google Chrome** installé (pour le mode headless du pipeline ETL séparé)
-- Un compte de service Azure AD avec droits sur le site SharePoint cible et l'option **« Allow public client flows »** activée
-- Une clé API **OpenRouter**
+- **Node.js 18+** (recommandé : 20 LTS) — pour le frontend
+- **Python 3.10+** — pour le backend
+- **PostgreSQL 16** — base `gsmr_dwh` avec schémas bronze/silver/gold peuplés par le pipeline ETL
+- **Un compte SharePoint / Azure AD** avec un `CLIENT_ID` d'app registration (voir `backend/README.md`)
+- **Pipeline ETL** (repo séparé `gsmr-data-pipeline-dwh`) installé sur le même poste, avec Google Chrome pour Selenium headless
 
-Le pipeline ETL Expandium (repo séparé `gsmr-data-pipeline-dwh`) doit être installé sur le même poste et son chemin renseigné dans le `.env` du backend.
+## Installation (deux terminaux)
 
----
-
-## Installation
-
-### 1. Cloner le dépôt
-
-```bash
-git clone https://github.com/mdaittouda8/sor-platfporm.git oncf-platform
-cd oncf-platform
-```
-
-### 2. Backend
+### Terminal 1 — Backend
 
 ```bash
 cd backend
+
+# Créer un venv (recommandé)
 python -m venv .venv
-.venv\Scripts\activate            # Windows
-# source .venv/bin/activate       # Linux/macOS
+.venv\Scripts\activate          # Windows
+source .venv/bin/activate       # macOS / Linux
+
 pip install -r requirements.txt
+
+# Configurer les credentials SharePoint + connexion PostgreSQL + chemins pipeline
+cp .env.example .env            # puis éditer .env
+
+python main.py
+# → http://localhost:8000  (uvicorn tourne en continu)
 ```
 
-Copier le fichier de configuration :
+### Terminal 2 — Frontend
 
 ```bash
-copy .env.example .env            # Windows
-# cp .env.example .env            # Linux/macOS
-```
-
-Puis remplir `.env` (voir section **Configuration** plus bas).
-
-### 3. Frontend
-
-Depuis la racine du dépôt :
-
-```bash
+# (depuis la racine du projet)
 npm install
+
+# (Optionnel) Clé OpenRouter pour l'Analyse IA
+cp .env.example .env            # puis éditer .env
+
+npm run dev
+# → http://localhost:5173 (s'ouvre automatiquement)
 ```
 
----
+**Login démo :** n'importe quel identifiant / mot de passe — par ex. `mdaittouda` / `demo`.
 
-## Configuration
+### Que faire si le backend n'est pas démarré ?
 
-Le fichier `backend/.env` regroupe tous les secrets et paramètres d'environnement. **Il ne doit jamais être versionné.**
+Le dashboard fonctionne quand même :
 
-```env
-# --- SharePoint (OAuth ROPC via Microsoft Graph) ---
-SP_TENANT=<tenant-id-azure-ad-oncf>
-SP_CLIENT_ID=<application-id-azure-ad>
-SP_USERNAME=<compte-de-service@oncf.ma>
-SP_PASSWORD=<mot-de-passe-compte-service>
-SP_SITE=https://<oncf>.sharepoint.com/sites/<site>
-SP_FILE_PATH=/Documents/.../ertms.xlsx
+1. D'abord il tente `/api/ertms.xlsx` (le backend)
+2. Si le backend est hors ligne, il essaie `public/ertms.xlsx` (fichier statique)
+3. Si rien ne marche, une bannière apparaît avec un bouton « Choisir le fichier Excel »
 
-# --- Base PostgreSQL (entrepôt Expandium) ---
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=gsmr_dwh
-DB_USER=optimrail_reader
-DB_PASSWORD=<mot-de-passe-reader>
+Le bouton **Actualiser**, lui, nécessite le backend démarré — il affiche une erreur sinon.
 
-# --- Pipeline ETL (chemins vers le repo séparé) ---
-PIPELINE_SCRIPT_PATH=C:\Users\<vous>\OneDrive\Bureau\gsmr-data-pipeline-dwh\scheduler.py
-PIPELINE_PYTHON=C:\Users\<vous>\OneDrive\Bureau\gsmr-data-pipeline-dwh\.venv\Scripts\python.exe
+La page **Expandium**, en revanche, nécessite le backend **et** une base PostgreSQL joignable. Sans ça, les KPI et les graphiques par engin restent vides et un message d'erreur s'affiche.
+
+## Structure du projet
+
+```
+oncf-platform/
+├── backend/                      # FastAPI service (Python)
+│   ├── main.py                   # endpoints SharePoint (/api/ertms.xlsx, /api/refresh, /api/status)
+│   │                             # + endpoints Expandium (/api/expandium/kpis, /engine-causes,
+│   │                             #   /refresh, /refresh/status, /health)
+│   ├── sharepoint.py             # client SharePoint (token cache, ROPC auth)
+│   ├── expandium.py              # requêtes SQL sur vues gold (5 KPI + causes handover par engin)
+│   ├── expandium_jobs.py         # orchestration asynchrone du pipeline (subprocess + polling)
+│   ├── engine_mapping.py         # table de correspondance IMSI → engin (44 IMSI / 22 engins)
+│   ├── db.py                     # connexion SQLAlchemy à PostgreSQL
+│   ├── requirements.txt
+│   ├── .env.example              # credentials SharePoint + connexion PG + chemins pipeline
+│   ├── cache/                    # fichier téléchargé (créé au runtime, git-ignoré)
+│   └── README.md                 # guide détaillé du backend
+├── index.html                    # shell HTML, charge Inter Tight + Leaflet CSS
+├── package.json
+├── vite.config.js
+├── .env.example                  # gabarit pour la clé OpenRouter
+├── public/                       # fichiers statiques servis à la racine
+│   └── ertms.xlsx                # (à ajouter) — données de déconnexions
+└── src/
+    ├── main.jsx                  # point d'entrée, monte <App />
+    ├── App.jsx                   # routeur simple + provider de contexte
+    ├── styles/                   # CSS découpé par sujet (tokens → pages)
+    │   ├── base.css              # :root, reset
+    │   ├── login.css
+    │   ├── layout.css            # sidebar, topbar, structure des pages
+    │   ├── dashboard.css         # KPI, grille, légendes
+    │   ├── analyze.css           # page d'analyse IA
+    │   ├── modal.css             # modale de réglages
+    │   ├── ertms.css             # charts, carte, bannières, overlay export
+    │   ├── expandium.css         # cartes KPI + graphiques par engin
+    │   ├── documents.css         # page documents
+    │   └── responsive.css
+    ├── pages/
+    │   ├── LoginPage.jsx
+    │   ├── DashboardPage.jsx     # KPI + 4 charts + carte + filtres + import Excel
+    │   ├── ExpandiumPage.jsx     # 5 KPI radio + 2 graphiques journaliers par engin
+    │   ├── AnalyzePage.jsx       # analyse IA d'un événement GSM‑R
+    │   ├── DocumentsPage.jsx     # upload + extraction PDF/DOCX + résumé IA
+    │   └── SettingsPage.jsx      # configuration OpenRouter
+    ├── components/
+    │   ├── Sidebar.jsx           # navigation latérale (Général / Outils)
+    │   ├── Topbar.jsx            # fil d'Ariane + recherche + icônes
+    │   ├── SettingsModal.jsx     # modale de config (icône ⚙ top bar)
+    │   ├── DisconnectionMap.jsx  # carte Leaflet avec bulles agrégées
+    │   ├── ExportButton.jsx      # export dashboard PNG / PDF A4
+    │   └── expandium/
+    │       ├── ExpandiumPanel.jsx           # conteneur page (header + KPI + engines)
+    │       ├── ExpandiumKpiCard.jsx         # 1 carte KPI (variante couleur)
+    │       ├── ExpandiumRefreshButton.jsx   # bouton Synchroniser + polling status
+    │       └── EngineHandoverChart.jsx      # courbe Better Cell / Downlink Quality
+    ├── hooks/
+    │   ├── useChart.js           # lifecycle Chart.js propre (create/destroy)
+    │   └── useExpandiumData.js   # charge KPI + reload signal partagé
+    ├── lib/
+    │   ├── AppContext.jsx        # contexte global (clé API, user)
+    │   ├── excel.js              # parse XLSX, normalisation sous-systèmes
+    │   ├── expandium.js          # client fetch pour endpoints /api/expandium/*
+    │   ├── openrouter.js         # client + chaîne de fallback + SYSTEM_PROMPT
+    │   ├── docExtract.js         # pdf.js + mammoth → texte brut
+    │   ├── markdown.js           # micro renderer MD → HTML pour les sorties LLM
+    │   └── mapSvg.js             # carte SVG statique (fallback PDF)
+    └── data/
+        └── gsmrSites.js          # 33 coordonnées des sites GSM‑R (LGV)
 ```
 
-La clé API **OpenRouter** est saisie côté frontend, dans la page **Paramètres** de l'application. Elle est stockée dans `localStorage` du navigateur. Une migration future vers un stockage backend est prévue.
+## Charger les données
 
-### Création du compte PostgreSQL en lecture seule
+### Données ERTMS (SharePoint / Excel)
 
-À exécuter une fois en administrateur PostgreSQL sur la base `gsmr_dwh` :
+La page **Tableau de bord** lit automatiquement un fichier Excel placé dans `public/`. Trois noms sont tentés dans l'ordre :
+
+1. `public/ertms.xlsx`
+2. `public/Suivi_des_déconnexions_ERTMS_et_actions_correctives.xlsx`
+3. `public/data.xlsx`
+
+Si aucun n'est trouvé, une bannière orange apparaît sur le dashboard avec un bouton « Choisir le fichier Excel » pour le charger manuellement.
+
+**Colonnes attendues** (noms exacts, feuille `Data` en priorité puis la première feuille) :
+
+| Colonne | Rôle |
+|---|---|
+| `Date` | date de l'événement (format Excel ou ISO) |
+| `Rame` | identifiant de la rame |
+| `Motrice / Cab` | M1 ou M2 |
+| `Intervalle` | intervalle temporel |
+| `Evénement ` | type (⚠️ espace final intentionnel) |
+| `Sous Système mis en cause` | GSMR, BORD, RBC, … |
+| `Km` | PK (utilisé pour localiser sur la carte) |
+
+### Données Expandium (PostgreSQL / QATS)
+
+La page **Expandium** lit ses données depuis la base PostgreSQL `gsmr_dwh` via le backend. Les KPI et graphiques sont calculés à partir des vues du schéma `gold` :
+
+- `gold.fact_handover` — événements de handover
+- `gold.fact_etcs_call` — appels ETCS
+- `gold.fact_hdlc_frame_error` — erreurs HDLC
+- `gold.fact_transaction` — transactions GSM-R
+
+Ces vues sont alimentées par le **pipeline ETL** (repo séparé `gsmr-data-pipeline-dwh`) qui doit être exécuté au moins une fois avant que la page Expandium affiche quelque chose. Après la première exécution, un simple clic sur **Synchroniser Expandium** depuis la page relance le pipeline pour les 7 derniers jours.
+
+### Compte PostgreSQL en lecture seule
+
+Le backend accède à `gsmr_dwh` via un compte applicatif restreint aux `SELECT` sur les vues gold. À créer une fois :
 
 ```sql
 CREATE USER optimrail_reader WITH PASSWORD '<mot-de-passe>';
@@ -173,146 +211,76 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA gold
     GRANT SELECT ON TABLES TO optimrail_reader;
 ```
 
----
+Puis renseigner `DB_USER=optimrail_reader` et son mot de passe dans `backend/.env`.
 
-## Lancement
+## Clé API OpenRouter
 
-Deux terminaux, l'un pour le backend, l'autre pour le frontend.
+Les pages **Analyse IA** et **Documents** utilisent OpenRouter (chaîne de fallback : DeepSeek V3 → Llama 3.3 70B → Qwen3 → Gemma → Nemotron).
 
-### Backend (port 8000)
+**3 manières de fournir la clé**, par ordre de priorité :
 
-```bash
-cd backend
-.venv\Scripts\activate
-uvicorn main:app --reload --port 8000
-```
+1. **`.env`** : `VITE_OPENROUTER_KEY=sk-or-v1-...` — idéal en développement
+2. **Icône ⚙ (top bar)** : ouvre la modale, stocke dans le `localStorage` du navigateur
+3. **Page Paramètres** : même comportement que la modale
 
-La documentation interactive OpenAPI est disponible sur `http://localhost:8000/docs`.
+La clé saisie à l'écran a priorité sur celle du `.env`. Pour la réinitialiser : efface le champ dans Paramètres et clique Enregistrer.
 
-### Frontend (port 5173)
+> ⚠️ En production, la clé **doit** être gérée côté serveur (un backend proxy OpenRouter), pas exposée au navigateur. L'implémentation actuelle est acceptable pour un outil interne derrière un SSO.
 
-Depuis la racine :
+## Commandes
 
 ```bash
-npm run dev
+npm run dev        # serveur dev avec HMR (port 5173)
+npm run build      # build de production dans dist/
+npm run preview    # sert le build dist/ en local pour tester
 ```
 
-L'application est accessible sur `http://localhost:5173`. Vite proxifie automatiquement toutes les requêtes `/api/*` vers `http://localhost:8000`.
+## Déploiement
 
-### Login
+Le `npm run build` produit un dossier `dist/` statique qu'on peut héberger n'importe où :
 
-En développement, tout couple identifiant / mot de passe est accepté (mécanisme minimaliste en attente de l'intégration Azure AD SSO).
+- **Vercel / Netlify** : connecter le repo, build command `npm run build`, output `dist`
+- **Nginx / serveur interne ONCF** : copier `dist/` et servir avec du `try_files $uri /index.html` (pas de routing côté serveur nécessaire — il n'y a pas de React Router, tout tient en un seul `index.html`)
+- **Docker** : base `nginx:alpine`, copier `dist/` dans `/usr/share/nginx/html/`
 
----
+Pour le déploiement, pense à :
+- Injecter `VITE_OPENROUTER_KEY` au moment du build (ou mieux : ajouter un backend proxy)
+- Copier `ertms.xlsx` dans `public/` avant `npm run build` si tu veux que les données soient servies statiquement
+- Déployer aussi le backend FastAPI (systemd + uvicorn ou Docker) — la page Expandium et le bouton Actualiser en dépendent
+- S'assurer que PostgreSQL est joignable depuis le backend (mêmes machines, ou réseau interne ONCF)
 
-## Endpoints REST principaux
+## Ce qui reste à faire (roadmap v2)
 
-**SharePoint**
+Le port React reproduit fidèlement le prototype, et intègre désormais Expandium. Les axes naturels pour la suite :
 
-- `GET  /api/ertms.xlsx` — Fichier Excel en cache, ou téléchargement frais si absent
-- `POST /api/refresh` — Force un téléchargement depuis SharePoint
-- `GET  /api/status` — État du cache (date, taille)
-- `GET  /api/health` — Sonde de santé
+- **Backend FastAPI** pour :
+  - proxyer OpenRouter (clé côté serveur, logs d'usage)
+  - lire `ertms.xlsx` depuis SharePoint via MSAL (au lieu de `public/`)
+  - persister les documents uploadés et leurs résumés
+- **Auth réelle** (SSO Azure AD ONCF) — le login actuel accepte n'importe quoi
+- **Enrichissement Expandium** :
+  - récupérer le vrai mapping IMSI → engin depuis `silver.exp_subscriber_matrix` plutôt que la table en dur dans `engine_mapping.py`
+  - ajouter d'autres engins prioritaires en plus de 1205 M2 et 1207 M1
+  - percentiles P50/P95 sur la durée des handovers
+  - corrélation entre pics de déconnexion ERTMS et pics d'erreurs HDLC/handover
+- **Analyse IA** :
+  - upload de documents (PDF specs Huawei, drive test) comme contexte additionnel à l'incident décrit
+  - historique des analyses avec persistance
+- **Génération de rapport hebdo automatique** (module dédié à partir des KPI Expandium)
+- **Tests** : la logique métier (`excel.js`, `openrouter.js`, `mapSvg.js`, `expandium.py`) est pure et facile à tester en unitaire avec Vitest / pytest
 
-**Expandium**
+## Dépannage
 
-- `GET  /api/expandium/kpis?date_from=...&date_to=...` — Cinq indicateurs réseau
-- `GET  /api/expandium/engine-causes?engine=1205 M2&date_from=...&date_to=...` — Série journalière Better Cell / Downlink Quality
-- `POST /api/expandium/refresh` — Démarre un job de synchronisation du pipeline
-- `GET  /api/expandium/refresh/status?job_id=...` — État du job
-- `GET  /api/expandium/health` — Test de la connexion PostgreSQL
+**La carte reste blanche après export PDF** — corrigé via un `key` qui force le remount. Si ça arrive quand même, recharge la page.
 
-Documentation complète et testable sur `/docs`.
+**Erreur `pdfjs.worker.min.js not found`** — Vite récupère le worker via `?url` depuis `node_modules`. Si le `npm install` a échoué au milieu, relance-le en repartant de zéro : `rm -rf node_modules package-lock.json && npm install`.
 
----
+**Le dashboard affiche « sans Km »** pour beaucoup de lignes — la colonne Km est vide ou non numérique pour ces lignes. Les lignes sans Km n'apparaissent pas sur la carte mais comptent bien dans les KPI.
 
-## Architecture
+**CORS errors depuis OpenRouter** — n'utilise pas `file://` pour ouvrir l'app. Passe toujours par `npm run dev` ou par un vrai serveur HTTP.
 
-Architecture en quatre tiers :
+**Le bouton Synchroniser Expandium reste à « En cours » indéfiniment** — le sous-processus du pipeline s'est probablement bloqué (tunnel SSH refusé, Chrome absent, timeout Selenium). Vérifie les logs dans `gsmr-data-pipeline-dwh/logs/` du repo pipeline.
 
-1. **Présentation** — Frontend React exécuté dans le navigateur, avec parsing Excel côté client et rendus Leaflet / Chart.js
-2. **Médiation et orchestration** — Backend FastAPI : proxy OAuth vers SharePoint, requêtes SQL sur `gold.*`, orchestration asynchrone du pipeline via sous-processus
-3. **Pipeline ETL** — Repo séparé, scripts Python (paramiko + Selenium) qui alimentent l'entrepôt PostgreSQL en couches Bronze / Silver / Gold
-4. **Sources externes** — SharePoint (Microsoft Graph), sonde Expandium QATS (via tunnel SSH), PostgreSQL `gsmr_dwh`, OpenRouter Gateway, Azure Active Directory
+**KPI Expandium tous à zéro ou taux de succès HO à 0%** — souvent lié à une désynchro entre les valeurs attendues et les valeurs réellement présentes dans `handover_end_event`. Requête de diagnostic : `SELECT DISTINCT handover_end_event FROM gold.fact_handover;` — les valeurs attendues sont `HO Performed`, `HO Complete`, `HO Failure`, `RLC HO Failure` (attention à la casse).
 
----
-
-## Règles métier importantes
-
-- **Normalisation sous-systèmes** — Les libellés (`bord`, `Bord`, `BORD`) sont ramenés à une forme canonique
-- **Redistribution BORD/GSMR** — Les lignes hybrides sont réparties à parts égales, impair à BORD
-- **Mapping intervalle → coordonnées** — Un intervalle `GSMR_XX/YY` est placé au milieu arithmétique des deux sites
-- **Seuils de coloration carte** — Formule linéaire 2N / 3N / 4N où N est le nombre de semaines de la fenêtre filtrée
-- **Filtrage handovers Expandium** — Restreint aux causes `Better cell` et `Downlink quality` (attention à la casse, valeurs vérifiées empiriquement en base)
-- **Mapping IMSI → engin** — 44 IMSI répartis sur 22 engins (2 IMSI par motrice), maintenu dans `backend/engine_mapping.py`
-
----
-
-## Développement
-
-### Conventions
-
-- Le code frontend suit les conventions React : composants fonctionnels, hooks, contexte `AppContext` pour l'état global partagé
-- Le backend expose une API REST typée via Pydantic, avec messages d'erreur en français
-- Les secrets ne sont **jamais** commités : `.env` est dans `.gitignore`, seul `.env.example` est versionné
-- Les endpoints Expandium n'écrivent **jamais** dans la base : le compte `optimrail_reader` n'a que le droit `SELECT`
-
-### Ajouter un nouveau KPI Expandium
-
-1. Ajouter la fonction de calcul dans `backend/expandium.py` (requête SQL sur une vue `gold.*`)
-2. Exposer un endpoint dans `backend/main.py`
-3. Consommer l'endpoint depuis `src/hooks/useExpandiumData.js` (ou un nouveau hook)
-4. Afficher dans un composant `ExpandiumKpiCard`
-
-Si la donnée requise n'existe pas encore en `gold`, créer d'abord une vue SQL dans le schéma `gold` de la base `gsmr_dwh` (aucune modification du pipeline ETL n'est nécessaire, car les droits `ALTER DEFAULT PRIVILEGES` propagent automatiquement l'accès en lecture au compte `optimrail_reader`).
-
-### Ajouter un engin au mapping IMSI
-
-Éditer directement `backend/engine_mapping.py` et ajouter les deux IMSI (M1 et M2) du nouvel engin dans le dictionnaire `IMSI_TO_ENGINE`. Redémarrer le backend.
-
----
-
-## Limites connues
-
-- **Authentification** minimaliste en développement, en attente d'intégration Azure AD SSO
-- **Clé API OpenRouter** stockée côté navigateur, migration vers proxy backend prévue
-- **Aucune persistance applicative** — pas de base de données pour l'utilisateur (préférences, historique d'analyses), tout est en session
-- **Usage monoposte** — un utilisateur à la fois par instance
-- **Aucun test automatisé** — validation manuelle uniquement
-
-Ces limites sont documentées dans le chapitre 3 du rapport de titularisation.
-
----
-
-## Difficultés techniques résolues
-
-- **Authentification SharePoint MFA** — Activation manuelle de l'option « Allow public client flows » côté Azure AD pour compatibilité ROPC
-- **CORS et capture Leaflet** — Substitution temporaire du rendu Leaflet par un rendu SVG maison pendant les exports PNG
-- **Encodage UTF-8 sous-processus Windows** — Variables `PYTHONIOENCODING=utf-8` et `PYTHONUTF8=1` injectées dans l'environnement du sous-processus pour éviter les `UnicodeEncodeError` sur les logs
-- **Propagation code de sortie du pipeline** — `sys.exit(0 if success else 1)` dans le scheduler pour que le backend distingue succès et échec
-- **Filtrage par valeurs effectives et non par motif** — Le filtre initial `ILIKE '%success%'` retournait zéro ; remplacé par une énumération explicite `IN ('HO Performed', 'HO Complete')` après inspection SQL de `SELECT DISTINCT handover_end_event`
-- **Rafraîchissement des graphiques après synchronisation** — Propagation d'une `refreshKey` incrémentée aux composants enfants pour forcer un reload
-
----
-
-## Ressources
-
-- Documentation FastAPI : [https://fastapi.tiangolo.com](https://fastapi.tiangolo.com)
-- Documentation Leaflet : [https://leafletjs.com](https://leafletjs.com)
-- Documentation OpenRouter : [https://openrouter.ai/docs](https://openrouter.ai/docs)
-- Microsoft Graph : [https://learn.microsoft.com/graph](https://learn.microsoft.com/graph)
-
----
-
-## Auteur
-
-**Mohamed Ait Touda** — Data Engineer, Service Optimisation Réseau, ONCF
-Encadrement : Yassir El Barki, Chef de Service Optimisation Réseau
-
-Projet réalisé dans le cadre du dossier de titularisation au poste d'Ingénieur (2026).
-
----
-
-## Licence
-
-Usage interne ONCF. Non destiné à une diffusion publique.
+**Erreurs `UnicodeEncodeError` dans les logs du pipeline lancé depuis OptimRail** — le sous-processus Windows utilise CP1252 par défaut. Vérifie que `expandium_jobs.py` injecte bien `PYTHONIOENCODING=utf-8` et `PYTHONUTF8=1` dans l'environnement du subprocess.
