@@ -1,90 +1,250 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useApp } from '../lib/AppContext.jsx';
-import { FALLBACK_MODELS, SYSTEM_PROMPT, callOpenRouterWithFallback } from '../lib/openrouter.js';
+import { SYSTEM_PROMPT, callChatWithFallback } from '../lib/openrouter.js';
 import { renderMarkdown } from '../lib/markdown.js';
+import { extractDocText, formatFileSize, docKind } from '../lib/docExtract.js';
 
-const DEFAULT_DESC = `Déconnexion au site 15, Cell 215 → 216, sens M1, couche 2. Handover échoué à plusieurs reprises, niveau de signal faible (-95 dBm) à l'approche de la cellule voisine. Vitesse TGV ~280 km/h. Incident récurrent sur cette section depuis 3 jours.`;
+const CONV_STORAGE = 'oncf.analyze.conversations';
+const ACTIVE_STORAGE = 'oncf.analyze.activeId';
 
-// User-facing model picker — kept short on purpose, matches FALLBACK_MODELS.
+const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
+const ACCEPTED_EXT = ['pdf', 'docx', 'xlsx', 'xls', 'txt', 'md', 'csv', 'log'];
+const MAX_DOC_CONTEXT_CHARS = 50000;
+
 const MODEL_OPTIONS = [
   { id: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash Preview — Google, principal' },
   { id: 'nvidia/nemotron-nano-9b-v2:free', label: 'Nemotron Nano 9B v2 — Fallback automatique' },
 ];
 
+function makeConversation() {
+  return {
+    id: 'conv_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+    title: 'Nouvelle conversation',
+    messages: [], // { role: 'user'|'assistant', content, ts, usedModel?, isError? }
+    documents: [], // { id, name, size, kind, text, addedAt }
+    createdAt: Date.now(),
+  };
+}
+
+function loadConversations() {
+  try {
+    const raw = localStorage.getItem(CONV_STORAGE);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    }
+  } catch {
+    /* localStorage unavailable or corrupted — fall through */
+  }
+  return null;
+}
+
+function truncateTitle(text) {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  return clean.length > 42 ? clean.slice(0, 42) + '…' : clean;
+}
+
+function buildDocContext(documents) {
+  if (!documents || !documents.length) return '';
+  let combined = documents.map((d) => `## Document : ${d.name}\n${d.text}`).join('\n\n');
+  if (combined.length > MAX_DOC_CONTEXT_CHARS) {
+    combined =
+      combined.slice(0, MAX_DOC_CONTEXT_CHARS) +
+      `\n\n[... contexte tronqué à ~${Math.round(MAX_DOC_CONTEXT_CHARS / 1000)}k caractères]`;
+  }
+  return combined;
+}
+
+function buildErrorContent(attemptLog) {
+  const lines = (attemptLog || []).map(
+    (a) => `- ${a.status === 'ok' ? '✓' : '✗'} **${a.model}**${a.error ? ` — ${a.error}` : ''}`
+  );
+  return `⚠️ **Tous les modèles ont échoué.**\n\n${lines.join(
+    '\n'
+  )}\n\nVérifiez votre clé API, votre connexion, ou réessayez dans quelques minutes (limites de débit OpenRouter).`;
+}
+
 export default function AnalyzePage({ onOpenSettings }) {
   const { apiKey } = useApp();
-  const [desc, setDesc] = useState(DEFAULT_DESC);
+
+  const [conversations, setConversations] = useState(() => loadConversations() || [makeConversation()]);
+  const [activeId, setActiveId] = useState(() => {
+    try {
+      return localStorage.getItem(ACTIVE_STORAGE) || null;
+    } catch {
+      return null;
+    }
+  });
+
   const [modelId, setModelId] = useState(MODEL_OPTIONS[0].id);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [subText, setSubText] = useState('En attente de saisie…');
+  const [subText, setSubText] = useState('');
+  const [extracting, setExtracting] = useState(false);
 
-  // Result state: either { content, usedModel, fallbackUsed } or { attemptLog } on total failure
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
-  const [copyLabel, setCopyLabel] = useState('Copier');
-
-  const runAnalysis = async () => {
-    const trimmed = desc.trim();
-    if (!trimmed) {
-      setSubText('Veuillez décrire un événement.');
+  // Keep activeId valid: default to the first conversation, and recover if the
+  // active one was deleted.
+  useEffect(() => {
+    if (!conversations.length) {
+      setConversations([makeConversation()]);
       return;
     }
-    if (!apiKey) {
-      setError(null);
-      setResult(null);
-      setSubText('Configuration requise');
-      setResult({ noKey: true });
-      return;
+    if (!activeId || !conversations.some((c) => c.id === activeId)) {
+      setActiveId(conversations[0].id);
     }
+  }, [conversations, activeId]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONV_STORAGE, JSON.stringify(conversations));
+    } catch {
+      /* localStorage unavailable (private mode, quota) */
+    }
+  }, [conversations]);
+
+  useEffect(() => {
+    try {
+      if (activeId) localStorage.setItem(ACTIVE_STORAGE, activeId);
+    } catch {
+      /* localStorage unavailable */
+    }
+  }, [activeId]);
+
+  const active = conversations.find((c) => c.id === activeId) || conversations[0];
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [active?.messages.length, loading]);
+
+  const handleNewConversation = () => {
+    const conv = makeConversation();
+    setConversations((prev) => [conv, ...prev]);
+    setActiveId(conv.id);
+    setInput('');
+  };
+
+  const handleDeleteConversation = (id) => {
+    if (!confirm('Supprimer cette conversation ?')) return;
+    setConversations((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      return next.length ? next : [makeConversation()];
+    });
+  };
+
+  const handleFiles = async (fileList) => {
+    if (!fileList || !fileList.length || !active) return;
+    setExtracting(true);
+    for (const file of fileList) {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (!ACCEPTED_EXT.includes(ext)) {
+        alert(`Format non supporté : ${file.name}\nFormats acceptés : ${ACCEPTED_EXT.join(', ')}`);
+        continue;
+      }
+      if (file.size > MAX_SIZE) {
+        alert(`Fichier trop volumineux : ${file.name} (${formatFileSize(file.size)})\nMaximum : 20 Mo`);
+        continue;
+      }
+      try {
+        const text = await extractDocText({ file, kind: docKind(file.name), extractedText: null });
+        const docEntry = {
+          id: 'doc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+          name: file.name,
+          size: file.size,
+          kind: docKind(file.name),
+          text,
+          addedAt: Date.now(),
+        };
+        setConversations((prev) =>
+          prev.map((c) => (c.id === activeId ? { ...c, documents: [...c.documents, docEntry] } : c))
+        );
+      } catch (e) {
+        alert(`Erreur lors de la lecture de ${file.name} : ${e.message || e}`);
+      }
+    }
+    setExtracting(false);
+  };
+
+  const removeDocument = (docId) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === activeId ? { ...c, documents: c.documents.filter((d) => d.id !== docId) } : c))
+    );
+  };
+
+  const handleSend = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || loading || !apiKey || !active) return;
+
+    const convId = active.id;
+    const priorMessages = active.messages;
+    const docContext = buildDocContext(active.documents);
+    const fullSystemPrompt = docContext
+      ? `${SYSTEM_PROMPT}\n\n---\n\n# Contexte documents fournis par l'utilisateur\n${docContext}`
+      : SYSTEM_PROMPT;
+
+    const userMsg = { role: 'user', content: trimmed, ts: Date.now() };
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === convId
+          ? {
+              ...c,
+              title: c.messages.length === 0 ? truncateTitle(trimmed) : c.title,
+              messages: [...c.messages, userMsg],
+            }
+          : c
+      )
+    );
+    setInput('');
     setLoading(true);
-    setError(null);
-    setResult(null);
+    setSubText('Réflexion...');
 
-    const { content, usedModel, attemptLog, orderedModels } = await callOpenRouterWithFallback({
+    const chatMessages = [
+      { role: 'system', content: fullSystemPrompt },
+      ...priorMessages.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: trimmed },
+    ];
+
+    const { content, usedModel, attemptLog } = await callChatWithFallback({
       apiKey,
-      systemPrompt: SYSTEM_PROMPT,
-      userPrompt: trimmed,
+      messages: chatMessages,
       preferredModelId: modelId,
       onProgress: (model, i, total) => {
-        setSubText(i === 0
-          ? `Analyse avec ${model.name}...`
-          : `Basculement vers ${model.name} (tentative ${i + 1}/${total})...`);
+        setSubText(
+          i === 0 ? `Réflexion avec ${model.name}...` : `Basculement vers ${model.name} (${i + 1}/${total})...`
+        );
       },
     });
 
     setLoading(false);
 
-    if (content && usedModel) {
-      const fallbackUsed = usedModel.id !== modelId;
-      const preferredName = orderedModels[0].name;
-      setResult({ content, usedModel, fallbackUsed, preferredName });
-      setSubText(
-        fallbackUsed
-          ? `${preferredName} indisponible — analyse avec ${usedModel.name}`
-          : `Analyse terminée · ${new Date().toLocaleTimeString('fr-FR')}`
-      );
-    } else {
-      setError({ attemptLog });
-      setSubText('Échec');
+    const replyMsg =
+      content && usedModel
+        ? { role: 'assistant', content, ts: Date.now(), usedModel: usedModel.name }
+        : { role: 'assistant', content: buildErrorContent(attemptLog), ts: Date.now(), isError: true };
+
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convId ? { ...c, messages: [...c.messages, replyMsg] } : c))
+    );
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
-  const handleCopy = () => {
-    if (!result?.content) return;
-    navigator.clipboard.writeText(result.content);
-    setCopyLabel('✓ Copié');
-    setTimeout(() => setCopyLabel('Copier'), 1500);
-  };
+  if (!active) return null;
 
   return (
     <section className="page active">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Analyse IA · Déconnexion GSM‑R</h1>
+          <h1 className="page-title">Assistant IA · GSM-R</h1>
           <p className="page-sub">
-            Décrivez un incident — l'IA suggère une cause racine et un plan d'action.
+            Discutez avec l'assistant, joignez des documents pour lui donner du contexte.
           </p>
         </div>
         <div className="header-actions">
@@ -98,139 +258,159 @@ export default function AnalyzePage({ onOpenSettings }) {
         </div>
       </div>
 
-      <div className="analyze-grid">
-        {/* INPUT */}
-        <div className="card">
-          <div className="accent-strip"></div>
-          <div className="card-head" style={{ marginTop: 14 }}>
-            <div>
-              <div className="card-title">Événement de déconnexion</div>
-              <div className="card-sub">
-                Décrivez l'événement — Cell ID, sens, couche, niveau de signal…
+      {!apiKey && (
+        <div className="config-banner" style={{ display: 'flex' }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>
+            Aucune clé API OpenRouter configurée.{' '}
+            <a onClick={onOpenSettings} style={{ cursor: 'pointer' }}>
+              Configurer →
+            </a>
+          </span>
+        </div>
+      )}
+
+      <div className="chat-layout">
+        <aside className="chat-sidebar">
+          <button className="chat-new-btn" onClick={handleNewConversation}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            Nouvelle conversation
+          </button>
+          <div className="chat-conv-list">
+            {conversations.map((c) => (
+              <div
+                key={c.id}
+                className={`chat-conv-item ${c.id === activeId ? 'active' : ''}`}
+                onClick={() => setActiveId(c.id)}
+              >
+                <span className="chat-conv-title" title={c.title}>
+                  {c.title}
+                </span>
+                <button
+                  className="chat-conv-del"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteConversation(c.id);
+                  }}
+                  aria-label="Supprimer la conversation"
+                >
+                  ×
+                </button>
               </div>
-            </div>
+            ))}
+          </div>
+        </aside>
+
+        <div className="chat-main card">
+          <div className="chat-toolbar">
+            <select value={modelId} onChange={(e) => setModelId(e.target.value)}>
+              {MODEL_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {!apiKey && (
-            <div className="config-banner" style={{ display: 'flex' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-              <span>
-                Aucune clé API OpenRouter configurée.{' '}
-                <a onClick={onOpenSettings} style={{ cursor: 'pointer' }}>
-                  Configurer →
-                </a>
-              </span>
-            </div>
-          )}
+          <div className="chat-messages">
+            {active.messages.length === 0 && !loading && (
+              <div className="result-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                </svg>
+                <h4>Nouvelle conversation</h4>
+                <p>Décrivez un événement GSM-R ou posez une question. Joignez un document pour lui donner du contexte.</p>
+              </div>
+            )}
 
-          <div className="analyze-input">
-            <div className="field-group">
-              <label>Modèle IA (avec basculement automatique en cas d'échec)</label>
-              <select value={modelId} onChange={(e) => setModelId(e.target.value)}>
-                {MODEL_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {active.messages.map((m, i) => (
+              <MessageBubble key={i} msg={m} />
+            ))}
 
-            <div className="field-group">
-              <label>Description de l'événement</label>
-              <textarea
-                style={{ minHeight: 280 }}
-                placeholder="Ex : Déconnexion au site 15, Cell 215 → 216, sens M1, couche 2. Handover échoué, signal faible (-95 dBm)..."
-                value={desc}
-                onChange={(e) => setDesc(e.target.value)}
-              />
-            </div>
-
-            <button
-              className={`analyze-btn ${loading ? 'loading' : ''}`}
-              onClick={runAnalysis}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
+            {loading && (
+              <div className="chat-msg chat-msg-assistant">
+                <div className="chat-msg-bubble">
                   <div className="typing-indicator">
                     <span></span>
                     <span></span>
                     <span></span>
                   </div>
-                  Analyse en cours...
-                </>
-              ) : (
-                <>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2l2.39 5.42L20 9l-4.5 4.04L17 19l-5-3-5 3 1.5-5.96L4 9l5.61-1.58z" />
-                  </svg>
-                  Lancer l'analyse IA
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* RESULT */}
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <div className="card-title">Recommandations d'optimisation</div>
-              <div className="card-sub">
-                {result?.fallbackUsed && (
-                  <>
-                    ⚠️ <strong>{result.preferredName}</strong> indisponible — analyse faite avec{' '}
-                    <strong>{result.usedModel.name}</strong> ·{' '}
-                    {new Date().toLocaleTimeString('fr-FR')}
-                  </>
-                )}
-                {!result?.fallbackUsed && subText}
+                  <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>{subText}</span>
+                </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className="btn-ghost"
-                style={{ padding: '6px 10px', fontSize: 12 }}
-                disabled={!result?.content}
-                onClick={handleCopy}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                {copyLabel}
-              </button>
-            </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
 
-          {result?.usedModel && (
-            <div style={{ marginBottom: 12 }}>
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  background: 'rgba(243,146,0,.1)',
-                  color: 'var(--oncf-orange-deep)',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  border: '1px solid rgba(243,146,0,.2)',
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}
-              >
-                ✓ {result.usedModel.name}
-              </span>
+          {active.documents.length > 0 && (
+            <div className="chat-doc-chips">
+              {active.documents.map((d) => (
+                <span key={d.id} className="chat-doc-chip" title={`${d.name} · ${formatFileSize(d.size)}`}>
+                  📄 <span>{d.name}</span>
+                  <button onClick={() => removeDocument(d.id)} aria-label="Retirer le document">
+                    ×
+                  </button>
+                </span>
+              ))}
             </div>
           )}
 
-          <div className="result-box">
-            <ResultContent loading={loading} subText={subText} result={result} error={error} />
+          <div className="chat-input-row">
+            <button
+              className="chat-attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={extracting || !apiKey}
+              title="Joindre un document"
+            >
+              {extracting ? (
+                <div className="typing-indicator" style={{ padding: 0 }}>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              )}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.docx,.xlsx,.xls,.txt,.md,.csv,.log"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                handleFiles(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <textarea
+              placeholder="Écrivez votre message... (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={!apiKey}
+            />
+            <button
+              className="chat-send-btn"
+              onClick={handleSend}
+              disabled={!apiKey || loading || !input.trim()}
+              title="Envoyer"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -238,111 +418,14 @@ export default function AnalyzePage({ onOpenSettings }) {
   );
 }
 
-// Render the right-hand content panel based on current state.
-// Split out because it has four distinct states: empty, loading, success, error.
-function ResultContent({ loading, subText, result, error }) {
-  if (loading) {
-    return (
-      <div className="result-empty">
-        <div className="typing-indicator">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-        <h4 style={{ marginTop: 12 }}>{subText}</h4>
-        <p>Quelques secondes…</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="result-empty" style={{ textAlign: 'left', padding: 20 }}>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="var(--bad)"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ margin: '0 auto 10px', display: 'block' }}
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <h4 style={{ color: 'var(--bad)', textAlign: 'center' }}>
-          Tous les modèles ont échoué
-        </h4>
-        <p style={{ color: 'var(--slate-500)', fontSize: 12, margin: '12px 0 8px' }}>
-          Détail des tentatives :
-        </p>
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 13 }}>
-          {error.attemptLog.map((a, i) => {
-            const ok = a.status === 'ok';
-            return (
-              <li key={i} style={{ margin: '4px 0' }}>
-                <span
-                  style={{
-                    color: ok ? 'var(--good)' : 'var(--bad)',
-                    fontWeight: 700,
-                  }}
-                >
-                  {ok ? '✓' : '✗'}
-                </span>{' '}
-                <strong>{a.model}</strong>{' '}
-                <span style={{ color: 'var(--slate-400)', fontSize: 11 }}>({a.id})</span>
-                {a.error && (
-                  <>
-                    {' '}— <code style={{ fontSize: 11 }}>{a.error}</code>
-                  </>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-        <p
-          style={{
-            color: 'var(--slate-400)',
-            fontSize: 11,
-            marginTop: 14,
-            textAlign: 'center',
-          }}
-        >
-          Vérifiez votre clé API, votre connexion, ou réessayez dans quelques minutes (limites de
-          débit OpenRouter).
-        </p>
-      </div>
-    );
-  }
-
-  if (result?.noKey) {
-    return (
-      <div className="result-empty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--warn)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-        <h4>Clé API requise</h4>
-        <p>Configurez votre clé OpenRouter via l'icône ⚙️ en haut à droite pour lancer une analyse.</p>
-      </div>
-    );
-  }
-
-  if (result?.content) {
-    // Rendered markdown — safe because we escape in renderMarkdown before inserting HTML tags
-    return <div dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content) }} />;
-  }
-
+function MessageBubble({ msg }) {
+  const isUser = msg.role === 'user';
   return (
-    <div className="result-empty">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4z" />
-        <path d="M9 14l2 2 4-4" />
-      </svg>
-      <h4>Analyse en attente</h4>
-      <p>Décrivez un événement de déconnexion GSM-R puis lancez l'analyse.</p>
+    <div className={`chat-msg ${isUser ? 'chat-msg-user' : 'chat-msg-assistant'} ${msg.isError ? 'chat-msg-error' : ''}`}>
+      <div className="chat-msg-bubble">
+        {isUser ? <p>{msg.content}</p> : <div dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />}
+      </div>
+      {!isUser && msg.usedModel && !msg.isError && <div className="chat-msg-meta">✓ {msg.usedModel}</div>}
     </div>
   );
 }

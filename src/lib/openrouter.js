@@ -218,6 +218,31 @@ export async function callOpenRouterWithFallback({
   title = 'ONCF GSM-R Analyzer',
   onProgress, // optional: called with (model, attemptIndex, total) before each attempt
 }) {
+  return callChatWithFallback({
+    apiKey,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    preferredModelId,
+    temperature,
+    maxTokens,
+    title,
+    onProgress,
+  });
+}
+
+// Same cascade, but takes a full multi-turn message history (for the chat UI)
+// instead of a single system+user pair. messages: [{ role, content }, ...]
+export async function callChatWithFallback({
+  apiKey,
+  messages,
+  preferredModelId,
+  temperature = 0.3,
+  maxTokens = 2048,
+  title = 'ONCF GSM-R Analyzer',
+  onProgress, // optional: called with (model, attemptIndex, total) before each attempt
+}) {
   // Reorder chain: preferred model first, then others.
   // If no preferred model is given, or it's not in the list, just use the default order.
   const orderedModels = preferredModelId
@@ -246,10 +271,7 @@ export async function callOpenRouterWithFallback({
         },
         body: JSON.stringify({
           model: model.id,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
+          messages,
           temperature,
           max_tokens: maxTokens,
         }),

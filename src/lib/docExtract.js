@@ -5,6 +5,7 @@ import * as pdfjsLib from 'pdfjs-dist/build/pdf';
 // Vite-friendly way to get the worker as a URL
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
 import * as mammoth from 'mammoth/mammoth.browser';
+import * as XLSX from 'xlsx';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -18,6 +19,7 @@ export function docKind(name) {
   const ext = (name.split('.').pop() || '').toLowerCase();
   if (ext === 'pdf') return 'pdf';
   if (ext === 'docx') return 'docx';
+  if (['xlsx', 'xls'].includes(ext)) return 'xlsx';
   if (['txt', 'md', 'log'].includes(ext)) return 'txt';
   if (ext === 'csv') return 'csv';
   return 'other';
@@ -51,6 +53,17 @@ export async function extractDocText(doc) {
     const buf = await doc.file.arrayBuffer();
     const result = await mammoth.extractRawText({ arrayBuffer: buf });
     doc.extractedText = result.value || '';
+    return doc.extractedText;
+  }
+
+  if (doc.kind === 'xlsx') {
+    const buf = await doc.file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const parts = wb.SheetNames.map((name) => {
+      const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+      return `# Feuille : ${name}\n${csv}`;
+    });
+    doc.extractedText = parts.join('\n\n');
     return doc.extractedText;
   }
 
