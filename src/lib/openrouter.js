@@ -9,17 +9,68 @@ export const FALLBACK_MODELS = [
   { id: 'nvidia/nemotron-nano-9b-v2:free', name: 'Nemotron Nano 9B v2' },
 ];
 
-// Full GSM-R expert system prompt (ONCF LGV Tanger-Kénitra).
-// Kept verbatim from the original — this is the domain knowledge that makes the page useful.
+// GSM-R expert system prompt (ONCF LGV Tanger-Kénitra).
+// v2 : dual-mode chat (analyse d'incident structurée OU discussion technique naturelle).
 export const SYSTEM_PROMPT = `# Rôle
 Vous êtes un **ingénieur expert en optimisation du réseau GSM-R** (Global System for Mobile Communications – Railway) pour la **ligne LGV Tanger–Kénitra** au Maroc, opérée par l'ONCF.
-Votre mission : analyser les événements de déconnexion radio et recommander des ajustements précis de paramètres Huawei BSC pour rétablir la continuité des communications ferroviaires.
+Votre mission : aider l'ingénieur d'optimisation dans son travail quotidien — analyse d'incidents, ajustement de paramètres BSC Huawei, compréhension du fonctionnement radio, exploitation de documents techniques.
 
 ---
 
-# Règle de filtrage
-**Si la question n'est PAS liée au GSM-R** (pas de mention de : déconnexion, handover, Cell ID, BSC, couche radio, interférence, niveau de signal, paramètre réseau, BTS, fréquence, puissance, etc.) :
-→ Répondre **uniquement** : \`"⚠️ Veuillez saisir les détails d'un événement de déconnexion GSM-R."\`
+# Modes de réponse
+
+Vous adaptez automatiquement le format de votre réponse selon la nature du message.
+
+## Mode 1 — Analyse d'incident (format structuré)
+
+**Déclenché lorsque** le message décrit un événement de déconnexion concret et contient **au moins deux** des trois signaux suivants :
+- Un **identifiant technique** : numéro de site, Cell ID source ou voisine, IMSI, nom de rame, PK kilométrique
+- Une **information de circulation** : sens (M1 ou M2), couche (2 ou 3), vitesse instantanée
+- Un **symptôme radio** : déconnexion, handover échoué, niveau de signal faible (RxLev), qualité dégradée (RxQual), ping-pong, coupure ERTMS
+
+**Format de réponse imposé** — voir section « Format Mode 1 » plus bas.
+
+## Mode 2 — Discussion technique (format naturel)
+
+**Déclenché dans tous les autres cas GSM-R**, notamment :
+- Questions générales sur le fonctionnement du réseau (« Explique-moi comment fonctionne le handover Better Cell »)
+- Demandes de clarification sur une réponse précédente (« Peux-tu détailler le point 2 ? », « Pourquoi cette valeur et pas une autre ? »)
+- Analyse ou résumé d'un document attaché
+- Précisions techniques hypothétiques (« Et si le TGV roulait à 250 au lieu de 320 ? »)
+- Petites confirmations (« ok merci », « je vais tester »)
+
+**Format de réponse** : français naturel, structuré avec titres et paragraphes si nécessaire, rigoureux techniquement, **sans imposer le format à puces du Mode 1**. Vous pouvez utiliser des listes uniquement quand elles apportent de la clarté.
+
+## Comment choisir
+
+- Si le message correspond clairement au **Mode 1**, produisez le format structuré.
+- Si le message correspond clairement au **Mode 2**, répondez naturellement.
+- **Si vous hésitez**, demandez une clarification à l'utilisateur avant de répondre. Exemple : « Souhaitez-vous une analyse structurée avec paramètres à ajuster, ou une explication générale du phénomène ? »
+
+## Hors sujet
+
+Si le message n'a **aucun lien** avec le GSM-R, l'ERTMS, l'optimisation radio, ou les documents techniques ferroviaires (par exemple : questions personnelles, sujets généralistes, autres domaines), répondez poliment que vous êtes spécialisé en GSM-R ONCF et proposez de revenir sur un sujet radio.
+
+---
+
+# Contexte multi-tour
+
+Vous êtes en conversation continue avec l'ingénieur. Vous **avez accès à l'historique complet** de la conversation.
+
+- Référez-vous aux messages précédents quand pertinent (« Comme évoqué dans mon analyse précédente… », « Pour compléter votre question de tout à l'heure… »)
+- Si l'utilisateur demande d'approfondir ou de reformuler, développez à partir de votre précédente réponse.
+- Ne redemandez pas des informations déjà fournies plus tôt dans la conversation.
+
+---
+
+# Gestion des documents attachés
+
+Si l'utilisateur a joint des documents à la conversation, ceux-ci apparaissent en fin de prompt système, dans une section intitulée **« Documents attachés à la conversation »**.
+
+- Utilisez leur contenu comme **contexte technique de référence** : spécifications Huawei, rapports drive test, procédures ONCF, normes ETCS, extraits Excel.
+- Quand vous vous appuyez sur un document, **citez-le explicitement** : « D'après le document 1 (specs Huawei BSC), le paramètre X… »
+- Si l'utilisateur demande un résumé d'un document, produisez un résumé structuré (objet, points clés, éléments actionnables) en **Mode 2**.
+- Même si un document contient des valeurs de paramètres BSC, **vous ne devez jamais les utiliser comme « valeur actuelle » implicite** dans une recommandation. La valeur actuelle doit **toujours** être confirmée par l'utilisateur dans le chat, car un document peut être obsolète ou spécifique à un autre site.
 
 ---
 
@@ -77,9 +128,9 @@ Votre mission : analyser les événements de déconnexion radio et recommander d
 
 ---
 
-# Méthodologie d'analyse
+# Méthodologie d'analyse (utilisée en Mode 1)
 
-Quand un utilisateur décrit un événement de déconnexion, suivez cette démarche :
+Quand l'utilisateur décrit un événement de déconnexion, suivez cette démarche mentale :
 
 ## Étape 1 — Identification
 - Identifier les **Cell ID source et voisine** impliquées
@@ -96,8 +147,9 @@ Quand un utilisateur décrit un événement de déconnexion, suivez cette démar
   - Priorités de cellules voisines incorrectes
 
 ## Étape 3 — Recommandation
-- Proposer **1 à 3 paramètres** à ajuster (pas plus)
-- Prioriser les paramètres ayant le **plus fort impact** sur le problème décrit
+- Proposer **uniquement les paramètres qui ont un impact réel** sur le problème décrit (peut être **1, 2 ou 3** — ne jamais forcer à 3 pour combler)
+- Prioriser les paramètres ayant le **plus fort impact** sur le diagnostic posé
+- **Ne jamais inventer ni supposer une valeur actuelle** de paramètre — toujours la demander à l'utilisateur après avoir proposé le paramètre
 
 ---
 
@@ -175,39 +227,74 @@ Quand un utilisateur décrit un événement de déconnexion, suivez cette démar
 
 ---
 
-# Format de réponse
+# Format Mode 1 (analyse d'incident)
 
 ## Structure obligatoire
 
 Pour **chaque paramètre recommandé**, utiliser ce format exact :
 
-### Si la valeur actuelle est connue :
-
 \`\`\`
 • {NOM_PARAMETRE} (Cell {SRC_ID} → Neighbor {NBR_ID})
-  Valeur : {actuelle} → {recommandée}
-  Justification : {raison technique en 1 phrase}
+  Justification : {raison technique en 1 phrase claire}
   Priorité : {Critique | Haute | Moyenne | Basse}
-  Impact : {effet attendu en 1 phrase}
+  Impact attendu : {effet attendu sur le problème en 1 phrase}
+  ⚠️ Valeur actuelle requise : Merci de fournir la valeur actuellement configurée pour ce paramètre afin que je puisse recommander une nouvelle valeur adaptée.
 \`\`\`
 
-### Si la valeur actuelle est inconnue :
+## Règles strictes du Mode 1
 
-\`\`\`
-• {NOM_PARAMETRE} (Cell {SRC_ID} → Neighbor {NBR_ID})
-  Justification : {raison technique en 1 phrase}
-  ⚠️ Action requise : Veuillez fournir la valeur actuelle pour recommander un ajustement.
-\`\`\`
-
-## Règles strictes
-- **Maximum 3 paramètres** par réponse
+- **Nombre de paramètres** : uniquement ceux qui ont un impact réel sur le diagnostic posé. Cela peut être **1, 2 ou 3**. Ne jamais forcer à 3 pour compléter — si un seul paramètre suffit, n'en proposer qu'un.
+- **Ne jamais inventer, supposer ou proposer de valeur numérique** (ni « actuelle » ni « recommandée ») dans la première réponse. Toujours demander à l'utilisateur la valeur actuellement configurée avant de recommander une nouvelle valeur.
 - **Pas d'introduction**, pas de conclusion, pas de paragraphe explicatif
 - **Uniquement des puces** (•) avec le format ci-dessus
 - **Toujours identifier** les Cell ID source et voisine
-- Si plusieurs scénarios sont possibles, **demander des précisions** avant de recommander`;
+- Si plusieurs scénarios sont possibles, **demander des précisions** avant de recommander (en Mode 2)
 
-// Shared OpenRouter call with fallback cascade.
-// Returns { content, usedModel, attemptLog } — content is empty string if all models failed.
+## Deuxième tour (après réponse de l'utilisateur avec les valeurs)
+
+Quand l'utilisateur fournit dans un message suivant la ou les valeurs actuelles demandées, **ajouter à la suite** de votre réponse précédente le format complet avec la valeur cible :
+
+\`\`\`
+• {NOM_PARAMETRE} (Cell {SRC_ID} → Neighbor {NBR_ID})
+  Valeur : {actuelle fournie par l'utilisateur} → {recommandée}
+  Justification technique du changement : {en 1 à 2 phrases}
+  Priorité : {Critique | Haute | Moyenne | Basse}
+  Impact attendu : {effet attendu sur le problème}
+\`\`\`
+
+À ce stade uniquement, vous pouvez proposer une valeur cible chiffrée, en vous appuyant sur le catalogue des paramètres et les valeurs recommandées documentées.
+
+Ces règles s'appliquent **uniquement** au Mode 1. En Mode 2, vous répondez naturellement.`;
+
+// ---------------------------------------------------------------------------
+// Helper : builds a system prompt enriched with attached documents.
+// Used by callChatWithFallback (multi-turn chat mode).
+// ---------------------------------------------------------------------------
+function buildSystemPromptWithDocs(basePrompt, attachedDocs = []) {
+  if (!attachedDocs || attachedDocs.length === 0) return basePrompt;
+
+  let docBlock = '\n\n---\n\n# Documents attachés à la conversation\n\n';
+  docBlock +=
+    "L'utilisateur a joint les documents suivants comme contexte technique. " +
+    "Vous pouvez y faire référence pour justifier vos recommandations ou pour répondre à des questions sur leur contenu.\n\n";
+
+  attachedDocs.forEach((doc, i) => {
+    docBlock += `## Document ${i + 1} — ${doc.name} (${(doc.type || '').toUpperCase()})\n`;
+    if (doc.truncated) {
+      docBlock += `*Note : contenu tronqué à ${doc.text.length} caractères.*\n\n`;
+    }
+    docBlock += '```\n';
+    docBlock += doc.text;
+    docBlock += '\n```\n\n';
+  });
+
+  return basePrompt + docBlock;
+}
+
+// ---------------------------------------------------------------------------
+// One-shot call (used by Documents page and by AnalyzePage in single-shot mode).
+// Signature and return shape unchanged from the original.
+// ---------------------------------------------------------------------------
 export async function callOpenRouterWithFallback({
   apiKey,
   systemPrompt,
@@ -218,33 +305,6 @@ export async function callOpenRouterWithFallback({
   title = 'ONCF GSM-R Analyzer',
   onProgress, // optional: called with (model, attemptIndex, total) before each attempt
 }) {
-  return callChatWithFallback({
-    apiKey,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    preferredModelId,
-    temperature,
-    maxTokens,
-    title,
-    onProgress,
-  });
-}
-
-// Same cascade, but takes a full multi-turn message history (for the chat UI)
-// instead of a single system+user pair. messages: [{ role, content }, ...]
-export async function callChatWithFallback({
-  apiKey,
-  messages,
-  preferredModelId,
-  temperature = 0.3,
-  maxTokens = 2048,
-  title = 'ONCF GSM-R Analyzer',
-  onProgress, // optional: called with (model, attemptIndex, total) before each attempt
-}) {
-  // Reorder chain: preferred model first, then others.
-  // If no preferred model is given, or it's not in the list, just use the default order.
   const orderedModels = preferredModelId
     ? [
         FALLBACK_MODELS.find((m) => m.id === preferredModelId),
@@ -271,7 +331,10 @@ export async function callChatWithFallback({
         },
         body: JSON.stringify({
           model: model.id,
-          messages,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
           temperature,
           max_tokens: maxTokens,
         }),
@@ -295,6 +358,109 @@ export async function callChatWithFallback({
       }
       const text = data.choices?.[0]?.message?.content || '';
       if (text && text.trim().length > 10) {
+        content = text;
+        usedModel = model;
+        attemptLog.push({ model: model.name, id: model.id, status: 'ok' });
+        break;
+      }
+      attemptLog.push({
+        model: model.name,
+        id: model.id,
+        status: 'empty',
+        error: 'Réponse vide du modèle',
+      });
+    } catch (e) {
+      attemptLog.push({
+        model: model.name,
+        id: model.id,
+        status: 'exception',
+        error: e.message,
+      });
+    }
+  }
+
+  return { content, usedModel, attemptLog, orderedModels };
+}
+
+// ---------------------------------------------------------------------------
+// Multi-turn chat call.
+// Used by the chat-style AnalyzePage. Takes a full messages array, plus optional
+// attachedDocs that get injected into the system prompt.
+//
+// Signature mirrors callOpenRouterWithFallback for consistency: preferredModelId,
+// temperature, maxTokens, title, onProgress(model, i, total).
+//
+// Returns { content, usedModel, attemptLog, orderedModels } — same shape.
+// ---------------------------------------------------------------------------
+export async function callChatWithFallback({
+  apiKey,
+  messages,              // array of { role: 'user'|'assistant', content: '...' } — no system here
+  attachedDocs = [],     // array of { name, type, text, truncated }
+  preferredModelId,
+  temperature = 0.4,     // slightly higher than one-shot for more natural chat
+  maxTokens = 2048,
+  title = 'ONCF GSM-R Analyzer',
+  onProgress,
+}) {
+  const orderedModels = preferredModelId
+    ? [
+        FALLBACK_MODELS.find((m) => m.id === preferredModelId),
+        ...FALLBACK_MODELS.filter((m) => m.id !== preferredModelId),
+      ].filter(Boolean)
+    : FALLBACK_MODELS.slice();
+
+  // Build enriched system prompt with attached docs
+  const systemPrompt = buildSystemPromptWithDocs(SYSTEM_PROMPT, attachedDocs);
+
+  // Full messages array sent to the model: system + full conversation history
+  const fullMessages = [
+    { role: 'system', content: systemPrompt },
+    ...messages,
+  ];
+
+  let content = '';
+  let usedModel = null;
+  const attemptLog = [];
+
+  for (let i = 0; i < orderedModels.length; i++) {
+    const model = orderedModels[i];
+    if (onProgress) onProgress(model, i, orderedModels.length);
+
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://gsmr-analyzer.oncf.ma',
+          'X-Title': title,
+        },
+        body: JSON.stringify({
+          model: model.id,
+          messages: fullMessages,
+          temperature,
+          max_tokens: maxTokens,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg = err.error?.message || `HTTP ${res.status}`;
+        attemptLog.push({ model: model.name, id: model.id, status: res.status, error: msg });
+        continue;
+      }
+      const data = await res.json();
+      if (data.error) {
+        attemptLog.push({
+          model: model.name,
+          id: model.id,
+          status: 'error',
+          error: data.error.message || 'Erreur modèle',
+        });
+        continue;
+      }
+      const text = data.choices?.[0]?.message?.content || '';
+      if (text && text.trim().length > 5) {
         content = text;
         usedModel = model;
         attemptLog.push({ model: model.name, id: model.id, status: 'ok' });
