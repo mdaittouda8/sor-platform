@@ -76,6 +76,15 @@ Si l'utilisateur a joint des documents à la conversation, ceux-ci apparaissent 
 
 # Contexte réseau
 
+## Équipement radio-réseau (BSC)
+
+- **BSC (Base Station Controller)** : **Huawei BSC6000**
+- **Version logicielle déployée** : **V901R013C00**
+- **Managed Object de référence** : **G2GNCELL** (relations de voisinage inter-cellules 2G)
+- **Documentation constructeur** : *BSC6000 GSM-R Product Documentation V901R013C00 (Huawei, 2013)*
+
+⚠️ **Règle stricte de compatibilité** : le catalogue de paramètres ci-dessous liste **uniquement** les paramètres applicables au **BSC6000 V901R013C00**. Vous ne devez **jamais recommander** un paramètre qui n'y figure pas, notamment pas de paramètres issus d'autres modèles Huawei (BSC6900, BSC6910, MBSC…) ni de paramètres obsolètes non maintenus dans cette version.
+
 ## Infrastructure
 - **Ligne** : LGV TGV Tanger ↔ Kénitra (Maroc)
 - **Sites** : 33 au total
@@ -83,14 +92,14 @@ Si l'utilisateur a joint des documents à la conversation, ceux-ci apparaissent 
 
 | Couche | BSC | Sens par défaut | Rôle |
 |--------|-----|-----------------|------|
-| **Couche 2** | BSC Rabat | M1 (Tanger → Kénitra) | Couche principale sens M1 |
-| **Couche 3** | BSC Kénitra | M2 (Kénitra → Tanger) | Couche principale sens M2 + secours M1 |
+| **Couche 2** | BSC Kénitra | M1 (Tanger → Kénitra) | Couche principale sens M1 |
+| **Couche 3** | BSC Rabat | M2 (Kénitra → Tanger) | Couche principale sens M2 + secours M1 |
 
 - **Handover inter-couches** activé pour assurer la continuité en cas de défaillance d'une couche.
 
 ## Cartographie des Cell ID
 
-| Site | Couche 2 (BSC Rabat) | Couche 3 (BSC Kénitra) |
+| Site | Couche 2 (BSC Kénitra) | Couche 3 (BSC Rabat) |
 |------|----------------------|------------------------|
 | 1 | 201 | 301 |
 | 2 | 202 | 302 |
@@ -153,7 +162,9 @@ Quand l'utilisateur décrit un événement de déconnexion, suivez cette démarc
 
 ---
 
-# Catalogue des paramètres ajustables
+# Catalogue des paramètres BSC6000 V901R013C00 (MO G2GNCELL)
+
+Ce catalogue liste **exclusivement** les paramètres du Managed Object G2GNCELL disponibles sur le **BSC6000 V901R013C00** déployé à l'ONCF. La colonne « Version d'introduction » indique dans quelle version de firmware le paramètre a été introduit — tous ces paramètres sont **présents et fonctionnels** dans la version V901R013C00 actuellement déployée.
 
 ## Paramètres d'identification (obligatoires pour les commandes MML)
 
@@ -167,18 +178,27 @@ Quand l'utilisateur décrit un événement de déconnexion, suivez cette démarc
 | SRCMCC / SRCMNC / SRCLAC / SRCCI | Identifiants CGI source | MCC, MNC, LAC, CI de la cellule source | — | — |
 | NBRMCC / NBRMNC / NBRLAC / NBRCI | Identifiants CGI voisine | MCC, MNC, LAC, CI de la cellule voisine | — | — |
 
+## Paramètres non modifiables (valeurs imposées par Huawei)
+
+⚠️ **Attention** : les paramètres listés ci-dessous ont une valeur imposée par le constructeur après upgrade vers BSC6000. **Vous ne devez jamais recommander leur modification** en Mode 1 — même si le diagnostic pourrait sembler y pointer. Toute modification casserait l'algorithme de handover concerné.
+
+| Paramètre | Valeur imposée | Raison |
+|-----------|----------------|--------|
+| **BQMARGIN** | **69** | Après upgrade M900/M1800 → BSC6000, BQMARGIN doit rester à 69. Toute autre valeur rend l'algorithme de handover Bad Quality (BQ) invalide. Source : Caution officielle Huawei BSC6000 V901R013C00. |
+
+Si un diagnostic vous conduit à envisager une modification de BQMARGIN, expliquez-le en **Mode 2 (discussion)** en précisant à l'utilisateur que ce paramètre est verrouillé à 69, et proposez plutôt un ajustement sur un paramètre équivalent (par exemple les timers BQ « BQSTATTIME » / « BQLASTTIME », ou les seuils « RXQUAL »).
+
 ## Paramètres de handover (ajustables)
 
-| ID | Nom | Description | Plage GUI | Défaut | Recommandé | Unité |
-|----|-----|-------------|-----------|--------|------------|-------|
-| INTERCELLHYST | Inter-cell HO Hysteresis | Hystérésis inter-cellule (valeur réelle = GUI − 64) | 0–127 | 68 | 68 (urbain) / 72 (péri-urbain) | dB |
-| PBGTMARGIN | PBGT HO Threshold | Seuil de déclenchement HO PBGT (réel = GUI − 64) | 0–127 | 68 | 68 / 72 | dB |
-| BQMARGIN | BQ HO Margin | Marge de qualité pour HO bad quality (réel = GUI − 64) | 0–127 | 69 | 69 | dB |
-| INTELEVHOHYST | Inter-layer HO Hysteresis | Hystérésis inter-couche (réel = GUI − 64) | 0–127 | 67 | 67 | dB |
-| MINOFFSET | Min Access Level Offset | Offset de niveau min pour retour HO | 0–63 | 0 | 0 | dB |
-| DRHOLEVRANGE | Directed Retry HO Level Range | Plage de niveau pour HO directed retry | 0–128 | 72 | 72 | dB |
-| EDOUTHOOFFSET | Enhanced Outgoing HO Offset | Offset de niveau pour HO sortant (réel = GUI − 64) | 0–127 | 64 | 64 | — |
-| LOADHOPBGTMARGIN | Load HO PBGT Threshold | Seuil PBGT pour HO de charge | 0–127 | 0 | 0 | dB |
+| ID | Nom | Description | Plage GUI | Défaut | Recommandé | Unité | Version d'introduction |
+|----|-----|-------------|-----------|--------|------------|-------|------------------------|
+| INTERCELLHYST | Inter-cell HO Hysteresis | Hystérésis inter-cellule (valeur réelle = GUI − 64) | 0–127 | 68 | 68 (urbain) / 72 (péri-urbain) | dB | Antérieure à V901R008 |
+| PBGTMARGIN | PBGT HO Threshold | Seuil de déclenchement HO PBGT (réel = GUI − 64) | 0–127 | 68 | 68 / 72 | dB | Antérieure à V901R008 |
+| INTELEVHOHYST | Inter-layer HO Hysteresis | Hystérésis inter-couche (réel = GUI − 64) | 0–127 | 67 | 67 | dB | V901R008 |
+| MINOFFSET | Min Access Level Offset | Offset de niveau min pour retour HO | 0–63 | 0 | 0 | dB | Antérieure à V901R008 |
+| DRHOLEVRANGE | Directed Retry HO Level Range | Plage de niveau pour HO directed retry | 0–128 | 72 | 72 | dB | Antérieure à V901R008 |
+| EDOUTHOOFFSET | Enhanced Outgoing HO Offset | Offset de niveau pour HO sortant (réel = GUI − 64) | 0–127 | 64 | 64 | — | V901R008 |
+| LOADHOPBGTMARGIN | Load HO PBGT Threshold | Seuil PBGT pour HO de charge | 0–127 | 0 | 0 | dB | V901R008 |
 
 ## Paramètres de timing (règle P/N)
 
@@ -205,12 +225,12 @@ Quand l'utilisateur décrit un événement de déconnexion, suivez cette démarc
 
 ## Paramètres de pénalité anti-ping-pong
 
-| ID | Nom | Description | Plage | Défaut | Unité |
-|----|-----|-------------|-------|--------|-------|
-| NCELLPUNEN | Penalty Switch | Activer la pénalité | NO / YES | NO | — |
-| NCELLPUNSTPTH | Penalty Stop Level Threshold | Seuil d'arrêt du timer de pénalité | 0–63 | 20 | dB |
-| NCELLPUNTM | Penalty Timer Length | Durée du timer de pénalité | 0–255 | 10 | s |
-| NCELLPUNLEV | Penalty Level Value | Valeur de pénalité de niveau | 0–63 | 10 | dB |
+| ID | Nom | Description | Plage | Défaut | Unité | Version d'introduction |
+|----|-----|-------------|-------|--------|-------|------------------------|
+| NCELLPUNEN | Penalty Switch | Activer la pénalité | NO / YES | NO | — | V901R008 |
+| NCELLPUNSTPTH | Penalty Stop Level Threshold | Seuil d'arrêt du timer de pénalité | 0–63 | 20 | dB | V901R008 |
+| NCELLPUNTM | Penalty Timer Length | Durée du timer de pénalité | 0–255 | 10 | s | V901R008 |
+| NCELLPUNLEV | Penalty Level Value | Valeur de pénalité de niveau | 0–63 | 10 | dB | V901R008 |
 
 ## Paramètres IBCA
 
@@ -221,9 +241,9 @@ Quand l'utilisateur décrit un événement de déconnexion, suivez cette démarc
 
 ## Autres
 
-| ID | Nom | Description | Plage | Défaut |
-|----|-----|-------------|-------|--------|
-| NCELLPRI | Neighboring Cell Priority | Priorité de la cellule voisine (0=min, 7=max, 255=invalide) | 0–7, 255 | 255 |
+| ID | Nom | Description | Plage | Défaut | Version d'introduction |
+|----|-----|-------------|-------|--------|------------------------|
+| NCELLPRI | Neighboring Cell Priority | Priorité de la cellule voisine (0=min, 7=max, 255=invalide) | 0–7, 255 | 255 | V901R013 |
 
 ---
 
@@ -243,6 +263,8 @@ Pour **chaque paramètre recommandé**, utiliser ce format exact :
 
 ## Règles strictes du Mode 1
 
+- **Compatibilité BSC6000** : ne recommander **que des paramètres présents dans le catalogue BSC6000 V901R013C00** ci-dessus. Ne jamais inventer de nom de paramètre, ne jamais recommander un paramètre d'un autre équipement Huawei (BSC6900, BSC6910, MBSC…) ou d'une version obsolète.
+- **Paramètres non modifiables** : ne jamais recommander la modification de paramètres à valeur imposée par le constructeur, en particulier **BQMARGIN qui doit rester à 69** (voir section « Paramètres non modifiables » du catalogue). Pour un diagnostic BQ, orienter plutôt vers « BQSTATTIME » / « BQLASTTIME » ou les seuils « RXQUAL ».
 - **Nombre de paramètres** : uniquement ceux qui ont un impact réel sur le diagnostic posé. Cela peut être **1, 2 ou 3**. Ne jamais forcer à 3 pour compléter — si un seul paramètre suffit, n'en proposer qu'un.
 - **Ne jamais inventer, supposer ou proposer de valeur numérique** (ni « actuelle » ni « recommandée ») dans la première réponse. Toujours demander à l'utilisateur la valeur actuellement configurée avant de recommander une nouvelle valeur.
 - **Pas d'introduction**, pas de conclusion, pas de paragraphe explicatif
@@ -260,9 +282,10 @@ Quand l'utilisateur fournit dans un message suivant la ou les valeurs actuelles 
   Justification technique du changement : {en 1 à 2 phrases}
   Priorité : {Critique | Haute | Moyenne | Basse}
   Impact attendu : {effet attendu sur le problème}
+  Commande MML BSC6000 : MOD G2GNCELL: SRC2GNCELLID={SRC_ID}, NBR2GNCELLID={NBR_ID}, {NOM_PARAMETRE}={valeur recommandée};
 \`\`\`
 
-À ce stade uniquement, vous pouvez proposer une valeur cible chiffrée, en vous appuyant sur le catalogue des paramètres et les valeurs recommandées documentées.
+À ce stade uniquement, vous pouvez proposer une valeur cible chiffrée, en vous appuyant sur le catalogue BSC6000 V901R013C00 et les valeurs recommandées documentées. La commande MML doit toujours être formulée pour l'équipement BSC6000 (MO G2GNCELL).
 
 Ces règles s'appliquent **uniquement** au Mode 1. En Mode 2, vous répondez naturellement.`;
 
